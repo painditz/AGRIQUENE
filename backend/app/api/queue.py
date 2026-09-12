@@ -8,7 +8,7 @@ from ..models.models import (
     Farmer, User, Booking, UserRole
 )
 from ..schemas.schemas import CentreQueueStatusResponse, QueueItem, QueueCallRequest
-from ..core.security import require_role
+from ..core.security import require_role, verify_staff_centre_access
 from ..services.eta_service import eta_service
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
@@ -131,6 +131,8 @@ async def call_next_token(
     centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == effective_centre_id).first()
     if not centre:
         raise HTTPException(status_code=404, detail="Centre not found")
+        
+    verify_staff_centre_access(current_user, centre.id)
         
     # If a specific token_id was requested
     if payload.token_id:
@@ -269,6 +271,8 @@ async def mark_farmer_arrived(
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
         
+    verify_staff_centre_access(current_user, token.centre_id)
+        
     token.status = TokenStatus.ARRIVED
     token.arrived_at = datetime.utcnow()
     db.commit()
@@ -308,6 +312,8 @@ async def start_token_processing(
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
         
+    verify_staff_centre_access(current_user, token.centre_id)
+        
     token.status = TokenStatus.PROCESSING
     token.started_at = datetime.utcnow()
     db.commit()
@@ -337,6 +343,8 @@ async def skip_token(
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
+        
+    verify_staff_centre_access(current_user, token.centre_id)
         
     token.status = TokenStatus.SKIPPED
     token.current_position = 0
@@ -389,6 +397,8 @@ async def complete_token(
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
+        
+    verify_staff_centre_access(current_user, token.centre_id)
         
     token.status = TokenStatus.COMPLETED
     token.completed_at = datetime.utcnow()

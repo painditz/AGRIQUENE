@@ -113,21 +113,28 @@ export default function HomePage() {
                 {t("heroSubheading")}
               </p>
 
-              {/* Action Buttons */}
+              {/* Action Buttons: 3 Portals */}
               <div className="pt-2 flex flex-wrap items-center gap-3">
                 <Link
                   href="/farmer/login"
-                  className="bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold text-sm px-6 py-3 rounded shadow-md flex items-center gap-2 transition active:scale-95"
+                  className="bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold text-sm px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition active:scale-95"
                 >
-                  <span>{t("btnFarmerLogin")}</span>
+                  <span>🌾 Farmer Portal</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
                 <Link
-                  href="/centres"
-                  className="bg-white/10 hover:bg-white/20 text-white border border-white/30 font-semibold text-sm px-5 py-3 rounded transition flex items-center gap-2"
+                  href="/staff/login"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition active:scale-95"
                 >
-                  <MapPin className="w-4 h-4 text-amber-300" />
-                  <span>{t("btnFindCentre")}</span>
+                  <span>⚖️ Staff Operational Desk</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href="/admin/login"
+                  className="bg-white/10 hover:bg-white/20 text-white border border-white/30 font-semibold text-sm px-4 py-3 rounded-xl transition flex items-center gap-2"
+                >
+                  <span>🛡️ State Admin Console</span>
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 

@@ -18,6 +18,37 @@ export interface AuthResponse {
   centre_name?: string;
 }
 
+export interface FarmerProfileResponse {
+  id: number;
+  user_id: number;
+  full_name: string;
+  mobile_number: string;
+  farmer_id_card?: string | null;
+  father_name?: string | null;
+  address?: string | null;
+  village?: string | null;
+  district: string;
+  state: string;
+  pin_code?: string | null;
+  land_acres: number;
+  bank_account_masked?: string | null;
+  bank_name?: string | null;
+  ifsc_code?: string | null;
+  preferred_crop: string;
+  preferred_centre_id?: number | null;
+  preferred_centre_name?: string | null;
+  created_at: string;
+}
+
+export interface NotificationItem {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface CentreItem {
   id: number;
   name: string;
@@ -577,15 +608,45 @@ class ApiClient {
     return this.request<CentreQueueStatus>(`/queue/${centreId}`);
   }
 
-  async callNextToken(data: { token_id?: number; counter_number: number }, centreId: number): Promise<any> {
-    return this.request(`/queue/call-next?centre_id=${centreId}`, {
+  async callNextToken(
+    counterOrData: number | { token_id?: number; counter_number: number },
+    centreId?: number,
+    tokenId?: number
+  ): Promise<any> {
+    let payload: { token_id?: number; counter_number: number };
+    let cId = centreId;
+    if (typeof counterOrData === "number") {
+      payload = { counter_number: counterOrData, token_id: tokenId };
+    } else {
+      payload = counterOrData;
+    }
+    const q = cId ? `?centre_id=${cId}` : "";
+    return this.request(`/queue/call-next${q}`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   }
 
   async markFarmerArrived(tokenId: number): Promise<any> {
     return this.request(`/queue/${tokenId}/arrived`, { method: "POST" });
+  }
+
+  async markArrived(tokenId: number): Promise<any> {
+    return this.markFarmerArrived(tokenId);
+  }
+
+  async getSlots(centreId: number, date?: string): Promise<SlotItem[]> {
+    return this.getCentreSlots(centreId, date);
+  }
+
+  async bookSlot(data: {
+    centre_id: number;
+    slot_id: number;
+    crop_type: string;
+    estimated_quantity_quintals: number;
+    season?: string;
+  }): Promise<TokenItem> {
+    return this.createBooking(data);
   }
 
   async startProcessingToken(tokenId: number): Promise<any> {
@@ -643,8 +704,15 @@ class ApiClient {
   }
 
   // Notifications & SMS
-  async getNotifications(): Promise<any[]> {
-    return this.request("/notifications");
+  async getNotifications(limit?: number): Promise<NotificationItem[]> {
+    const query = limit ? `?limit=${limit}` : "";
+    return this.request<NotificationItem[]>(`/notifications${query}`);
+  }
+
+  async markNotificationRead(id: number): Promise<any> {
+    return this.request(`/notifications/${id}/read`, {
+      method: "PUT",
+    });
   }
 
   async getSMSLogs(): Promise<SMSLogItem[]> {
@@ -656,13 +724,28 @@ class ApiClient {
     return this.request("/admin/dashboard");
   }
 
-  async getAdminFarmers(search?: string): Promise<any[]> {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  async getAdminMetrics(): Promise<any> {
+    return this.getAdminDashboard();
+  }
+
+  async getAdminFarmers(search?: string, page?: number): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+    if (page) params.append("page", page.toString());
+    const query = params.toString() ? `?${params.toString()}` : "";
     return this.request(`/admin/farmers${query}`);
   }
 
-  async getAdminBuyers(): Promise<any[]> {
-    return this.request("/admin/buyers");
+  async getAdminBuyers(search?: string): Promise<any[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return this.request(`/admin/buyers${query}`);
+  }
+
+  async createBuyer(data: any): Promise<any> {
+    return this.request("/admin/buyers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async unifiedLogin(data: { identifier: string; password?: string; otp?: string }): Promise<AuthResponse> {
@@ -672,11 +755,18 @@ class ApiClient {
     });
   }
 
-  async getAuditLogs(action?: string, entity_type?: string, limit: number = 50): Promise<AuditLogItem[]> {
+  async getAuditLogs(
+    actionOrParams?: string | { limit?: number; entityType?: string; entity_type?: string; action?: string },
+    entity_type?: string,
+    limit: number = 50
+  ): Promise<AuditLogItem[]> {
+    let act = typeof actionOrParams === "string" ? actionOrParams : actionOrParams?.action;
+    let ent = typeof actionOrParams === "object" ? (actionOrParams?.entityType || actionOrParams?.entity_type) : entity_type;
+    let lim = typeof actionOrParams === "object" && actionOrParams?.limit ? actionOrParams.limit : limit;
     const params = new URLSearchParams();
-    if (action) params.append("action", action);
-    if (entity_type) params.append("entity_type", entity_type);
-    params.append("limit", limit.toString());
+    if (act) params.append("action", act);
+    if (ent) params.append("entity_type", ent);
+    params.append("limit", lim.toString());
     return this.request<AuditLogItem[]>(`/admin/audit-logs?${params.toString()}`);
   }
 
@@ -688,7 +778,7 @@ class ApiClient {
     return this.request<any[]>(`/admin/tokens?${q.toString()}`);
   }
 
-  async adminTokenAction(tokenId: number, action: "EXPEDITE" | "VERIFY" | "CANCEL", reason?: string): Promise<any> {
+  async adminTokenAction(tokenId: number, action: "EXPEDITE" | "VERIFY" | "CANCEL" | string, reason?: string): Promise<any> {
     return this.request(`/admin/tokens/${tokenId}/action`, {
       method: "POST",
       body: JSON.stringify({ action, reason }),
@@ -791,6 +881,72 @@ class ApiClient {
       method: "POST",
     });
   }
+
+  async getSecuritySummary(): Promise<any> {
+    return this.request("/admin/security/summary");
+  }
 }
 
 export const api = new ApiClient();
+
+// Dedicated Role-Separated API Clients
+export const farmerApi = {
+  getMe: () => api.getMe(),
+  getProfile: () => api.getFarmerProfile(),
+  registerProfile: (data: any) => api.registerFarmerProfile(data),
+  getCurrentToken: () => api.getFarmerCurrentToken(),
+  getHistory: () => api.getFarmerHistory(),
+  getPayments: () => api.getFarmerPayments(),
+  getPayouts: () => api.getFarmerPayouts(),
+  getPaymentConfig: () => api.getPaymentConfig(),
+  createPaymentOrder: (data: any) => api.createPaymentOrder(data),
+  verifyPayment: (data: any) => api.verifyPayment(data),
+  recordPaymentFailure: (data: any) => api.recordPaymentFailure(data),
+  updateBankDetails: (data: any) => api.updateFarmerBankDetails(data),
+  updatePreferredCentre: (centreId: number) => api.updatePreferredCentre(centreId),
+  getCentres: (params?: any) => api.getCentres(params?.district, params?.state, params?.lat, params?.lng, params?.search, params?.limit, params?.radius_km, params?.include_id),
+  getSlots: (centreId: number, date?: string) => api.getSlots(centreId, date),
+  bookSlot: (data: any) => api.bookSlot(data),
+  cancelBooking: (bookingId: number) => api.cancelBooking(bookingId),
+  cancelToken: (tokenId: number) => api.cancelToken(tokenId),
+  getETA: (tokenId: number) => api.getETA(tokenId),
+  getNotifications: (limit?: number) => api.getNotifications(limit),
+  markNotificationRead: (id: number) => api.markNotificationRead(id),
+};
+
+export const staffApi = {
+  getMe: () => api.getMe(),
+  getCentreQueue: (centreId: number) => api.getCentreQueue(centreId),
+  callNextToken: (counterNumber: number, centreId?: number, tokenId?: number) => api.callNextToken(counterNumber, centreId, tokenId),
+  markArrived: (tokenId: number) => api.markArrived(tokenId),
+  startProcessing: (tokenId: number) => api.startTokenProcessing(tokenId),
+  skipToken: (tokenId: number) => api.skipToken(tokenId),
+  completeToken: (tokenId: number) => api.completeToken(tokenId),
+  submitProcurement: (data: any) => api.submitProcurement(data),
+  getCentres: () => api.getCentres(),
+  getCrops: () => api.getCrops(),
+  getNotifications: (limit?: number) => api.getNotifications(limit),
+};
+
+export const adminApi = {
+  getMe: () => api.getMe(),
+  getMetrics: () => api.getAdminMetrics(),
+  getCentres: () => api.getCentres(),
+  createCentre: (data: any) => api.createCentre(data),
+  updateCentre: (id: number, data: any) => api.updateCentre(id, data),
+  getFarmers: (search?: string, page?: number) => api.getAdminFarmers(search, page),
+  getStaff: (search?: string) => api.getAdminBuyers(search),
+  createStaff: (data: any) => api.createBuyer(data),
+  getTokens: (params?: any) => api.getAdminTokens(params),
+  tokenAction: (tokenId: number, action: string, reason?: string) => api.adminTokenAction(tokenId, action, reason),
+  getPayments: (params?: any) => api.getAdminPayments(params),
+  getPaymentStats: () => api.getAdminPaymentStats(),
+  refundPayment: (paymentId: number, data: { reason: string; refund_amount?: number }) => api.refundAdminPayment(paymentId, data),
+  getPayouts: (params?: any) => api.getAdminPayouts(params),
+  getPayoutStats: () => api.getAdminPayoutStats(),
+  authorizePayout: (payoutId: number, data?: any) => api.authorizeAdminPayout(payoutId, data),
+  getAuditLogs: (params?: any) => api.getAuditLogs(params),
+  getSecuritySummary: () => api.getSecuritySummary(),
+  getAnalyticsOverview: () => api.getAnalyticsOverview(),
+  getMLMetrics: () => api.getMLMetrics(),
+};

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -19,6 +19,7 @@ interface FarmerLayoutProps {
 
 export function FarmerLayout({ children }: FarmerLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useLanguage();
   const { user } = useAuth();
   const [showSMSModal, setShowSMSModal] = useState(false);
@@ -30,6 +31,18 @@ export function FarmerLayout({ children }: FarmerLayoutProps) {
     close_time?: string;
     contact_phone?: string;
   } | null>(null);
+
+  // Security route guard: Farmer portal is for FARMER role
+  useEffect(() => {
+    const token = localStorage.getItem("agriquene_token");
+    if (!token && typeof window !== "undefined") {
+      router.push("/farmer/login");
+      return;
+    }
+    if (user && user.role === "BUYER") {
+      router.push("/staff/dashboard");
+    }
+  }, [user, router]);
 
   useEffect(() => {
     const handleMandiChanged = (e: any) => {
@@ -91,18 +104,19 @@ export function FarmerLayout({ children }: FarmerLayoutProps) {
     { name: "Live Queue", href: "/farmer/queue", icon: Activity },
     { name: "Mandi Centres", href: "/farmer/centres", icon: MapPin },
     { name: "Procurement", href: "/farmer/procurement", icon: FileCheck2 },
-    { name: "DBT Payments", href: "/farmer/payments", icon: CreditCard },
+    { name: "Payments / DBT", href: "/farmer/payments", icon: CreditCard },
     { name: "History", href: "/farmer/history", icon: History },
     { name: "Notifications", href: "/farmer/notifications", icon: Bell },
+    { name: "My Profile", href: "/farmer/profile", icon: User },
   ];
 
-  // Mobile Bottom Nav items (Requirement 34: Home, Book, Queue, Procurement, Profile)
+  // Mobile Bottom Nav items (Home, Book, Queue, Payments, Profile)
   const mobileBottomItems = [
     { name: "Home", href: "/farmer/dashboard", icon: Home },
     { name: "Book", href: "/farmer/book", icon: CalendarPlus },
     { name: "Queue", href: "/farmer/queue", icon: Activity, highlight: true },
-    { name: "Receipts", href: "/farmer/history", icon: FileCheck2 },
     { name: "Payments", href: "/farmer/payments", icon: CreditCard },
+    { name: "Profile", href: "/farmer/profile", icon: User },
   ];
 
   return (

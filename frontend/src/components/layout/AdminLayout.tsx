@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   ShieldCheck, LayoutDashboard, Building2, Calendar,
-  Users, UserCog, BarChart3, Cpu, Settings, AlertTriangle, ArrowLeft, Lock, CreditCard, Ticket
+  Users, UserCog, BarChart3, Cpu, Settings, AlertTriangle, ArrowLeft, Lock, CreditCard, Ticket, RefreshCw
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -19,16 +19,18 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const { user } = useAuth();
 
   const adminNav = [
-    { name: "Executive Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-    { name: "Live Token Oversight", href: "/admin/tokens", icon: Ticket, badge: "Live" },
-    { name: "DBT & Payments", href: "/admin/payments", icon: CreditCard, badge: "PFMS" },
-    { name: "Operations Analytics", href: "/admin/analytics", icon: BarChart3 },
-    { name: "XGBoost ML Models", href: "/admin/ml-models", icon: Cpu, badge: "AI Core" },
-    { name: "Procurement Centres", href: "/admin/centres", icon: Building2 },
-    { name: "Slot Scheduling", href: "/admin/slots", icon: Calendar },
-    { name: "Mandi Staff / Buyers", href: "/admin/buyers", icon: UserCog },
-    { name: "Farmer Registry", href: "/admin/farmers", icon: Users },
-    { name: "System Audit Logs", href: "/admin/audit-logs", icon: ShieldCheck, badge: "SIH-25" },
+    { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Mandi Management", href: "/admin/centres", icon: Building2 },
+    { name: "Farmer Management", href: "/admin/farmers", icon: Users },
+    { name: "Staff Management", href: "/admin/buyers", icon: UserCog },
+    { name: "Token & Queue Monitoring", href: "/admin/tokens", icon: Ticket, badge: "Live" },
+    { name: "Payments & Treasury", href: "/admin/payments", icon: CreditCard, badge: "PFMS" },
+    { name: "Refunds", href: "/admin/refunds", icon: RefreshCw },
+    { name: "Reports & Analytics", href: "/admin/analytics", icon: BarChart3 },
+    { name: "Audit Logs", href: "/admin/audit-logs", icon: ShieldCheck, badge: "Audit" },
+    { name: "Security Console", href: "/admin/security", icon: Lock, badge: "RBAC" },
+    { name: "System Settings", href: "/admin/settings", icon: Settings },
+    { name: "ML Models & ETA", href: "/admin/ml-models", icon: Cpu, badge: "AI Core" },
   ];
 
   // Access Control: Block unauthorized users before rendering admin components

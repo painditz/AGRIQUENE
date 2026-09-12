@@ -53,6 +53,9 @@ class FarmerRegisterRequest(BaseModel):
     land_acres: float = 2.5
     preferred_crop: str = "Wheat"
     preferred_centre_id: Optional[int] = None
+    bank_name: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
 
 class FarmerProfileResponse(BaseModel):
     id: int

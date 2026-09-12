@@ -85,7 +85,7 @@ export default function UnifiedLoginPage() {
       if (role === "BUYER") {
         authData = await api.loginBuyer(identifier.trim(), password);
         login(authData);
-        router.push("/buyer/dashboard");
+        router.push("/staff/dashboard");
       } else if (role === "ADMIN") {
         authData = await api.loginAdmin(identifier.trim(), password);
         login(authData);
@@ -94,7 +94,7 @@ export default function UnifiedLoginPage() {
         authData = await api.unifiedLogin({ identifier: identifier.trim(), password });
         login(authData);
         if (authData.role === "ADMIN") router.push("/admin/dashboard");
-        else if (authData.role === "BUYER") router.push("/buyer/dashboard");
+        else if (authData.role === "BUYER") router.push("/staff/dashboard");
         else router.push("/farmer/dashboard");
       }
     } catch (err: any) {

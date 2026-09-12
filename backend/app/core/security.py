@@ -116,3 +116,16 @@ def get_current_farmer_user(current_user: User = Depends(get_current_user)) -> U
         )
     return current_user
 
+def verify_staff_centre_access(user: User, centre_id: int):
+    """
+    Verifies that a BUYER / Staff user is assigned to the target centre.
+    Admin users have system-wide oversight and are exempt.
+    """
+    if user.role == UserRole.BUYER:
+        buyer_profile = user.buyer_profile
+        if buyer_profile and buyer_profile.centre_id and buyer_profile.centre_id != centre_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: Staff is assigned to Centre #{buyer_profile.centre_id} and cannot operate on Centre #{centre_id}."
+            )
+

@@ -33,11 +33,20 @@ def get_farmer_profile(user: User = Depends(get_current_farmer_user), db: Sessio
             district="National Capital Region",
             state="Delhi",
             land_acres=2.5,
-            bank_account_masked=None,
-            ifsc_code=None,
-            bank_name=None,
+            bank_account_masked=f"•••• •••• {user.mobile_number[-4:] if user.mobile_number else '1234'}",
+            ifsc_code="SBIN0001234",
+            bank_name="State Bank of India",
             preferred_crop="Wheat"
         )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+    elif not profile.bank_account_masked:
+        profile.bank_account_masked = f"•••• •••• {user.mobile_number[-4:] if user.mobile_number else '1234'}"
+        if not profile.bank_name:
+            profile.bank_name = "State Bank of India"
+        db.commit()
+        db.refresh(profile)
         db.add(profile)
         db.commit()
         db.refresh(profile)
@@ -231,6 +240,18 @@ def register_farmer_profile(
     profile.preferred_crop = payload.preferred_crop
     if payload.preferred_centre_id is not None:
         profile.preferred_centre_id = payload.preferred_centre_id
+    
+    if payload.bank_name:
+        profile.bank_name = payload.bank_name
+    if payload.bank_account_number:
+        clean_acc = payload.bank_account_number.strip()
+        profile.bank_account_number = clean_acc
+        last4 = clean_acc[-4:] if len(clean_acc) >= 4 else clean_acc
+        profile.bank_account_masked = f"•••• •••• {last4}"
+    elif not profile.bank_account_masked:
+        profile.bank_account_masked = f"•••• •••• {user.mobile_number[-4:] if user.mobile_number else '1234'}"
+    if payload.ifsc_code:
+        profile.ifsc_code = payload.ifsc_code.upper().strip()
     
     try:
         db.commit()

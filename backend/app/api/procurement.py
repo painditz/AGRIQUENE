@@ -10,7 +10,7 @@ from ..models.models import (
     UserRole, User
 )
 from ..schemas.schemas import ProcurementSubmitRequest, ProcurementResponse
-from ..core.security import require_role
+from ..core.security import require_role, verify_staff_centre_access
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
 from ..services.payment_service import payment_service
@@ -34,6 +34,7 @@ async def submit_procurement(
         raise HTTPException(status_code=400, detail="Farmer profile not associated with token")
         
     centre = token.centre
+    verify_staff_centre_access(current_user, centre.id)
     crop_name = token.booking.crop_type if token.booking else "Wheat"
     
     # Fetch base MSP if not provided

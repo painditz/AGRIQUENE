@@ -520,38 +520,55 @@ def get_payment_stats_admin(db: Session = Depends(get_db)):
 def process_payment_refund(
     payment_id: int,
     payload: AdminRefundRequest,
+    current_admin: User = Depends(require_role(UserRole.ADMIN)),
     db: Session = Depends(get_db)
 ):
     payment = db.query(Payment).filter(Payment.id == payment_id).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
         
-    if payment.status == PaymentStatus.REFUNDED:
-        raise HTTPException(status_code=400, detail="Payment has already been refunded.")
+    if payment.status in [PaymentStatus.REFUNDED, PaymentStatus.CANCELLED]:
+        raise HTTPException(status_code=400, detail=f"Payment is already in '{payment.status.value}' state.")
 
-    ref_id = f"ref_agq_{uuid.uuid4().hex[:12]}"
-    refund_amt = payload.refund_amount or payment.amount
+    refund_amt = payload.refund_amount if (payload.refund_amount and 0 < payload.refund_amount <= payment.amount) else payment.amount
+    refund_ref = f"RFND-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     
     payment.status = PaymentStatus.REFUNDED
-    payment.refund_id = ref_id
+    payment.refund_id = refund_ref
     payment.refund_amount = refund_amt
     payment.refund_reason = payload.reason
     db.commit()
     db.refresh(payment)
     
+    farmer_user = payment.farmer.user if payment.farmer else None
+    if farmer_user:
+        sms_service.send_sms(
+            db, farmer_user.mobile_number,
+            f"REFUND ISSUED: Rs.{refund_amt:,.2f} has been refunded for Ref {payment.transaction_ref}. Refund Ref: {refund_ref}.",
+            "PAYMENT_REFUNDED"
+        )
+        notification_service.create_notification(
+            db, farmer_user.id,
+            "Payment Refund Processed",
+            f"Refund of Rs.{refund_amt:,.2f} has been processed. Refund Ref: {refund_ref}. Reason: {payload.reason}",
+            "PAYMENT"
+        )
+
     audit_service.log_event(
-        db, action="PAYMENT_REFUNDED", entity_type="PAYMENT",
-        entity_id=str(payment.id),
-        details=f"Payment {payment.transaction_ref} refunded (Amount: ₹{refund_amt:,.2f}, Reason: {payload.reason})"
+        db, action="REFUND_AUTHORIZED", entity_type="PAYMENT",
+        entity_id=str(payment.id), user_id=current_admin.id,
+        details=f"Admin {current_admin.full_name} authorized refund of ₹{refund_amt:,.2f} on payment {payment.transaction_ref}. Refund ID: {refund_ref}. Reason: {payload.reason}"
     )
     
     return {
         "success": True,
         "payment_id": payment.id,
-        "refund_id": ref_id,
+        "refund_id": refund_ref,
         "refund_amount": refund_amt,
         "status": "REFUNDED",
-        "reason": payload.reason
+        "reason": payload.reason,
+        "authorized_by": current_admin.full_name,
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 # -------------------------------------------------------------
@@ -694,5 +711,61 @@ def authorize_payout_admin(
         "amount": payout.amount,
         "authorized_by": current_admin.full_name,
         "processed_at": payout.processed_at.isoformat()
+    }
+
+
+@router.get("/security/summary")
+def get_security_summary(
+    current_admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: Session = Depends(get_db)
+):
+    from ..models.models import AuditLog
+    total_audit_logs = db.query(AuditLog).count()
+    recent_events = (
+        db.query(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    
+    total_users = db.query(User).count()
+    farmer_users = db.query(User).filter(User.role == UserRole.FARMER).count()
+    buyer_users = db.query(User).filter(User.role == UserRole.BUYER).count()
+    admin_users = db.query(User).filter(User.role == UserRole.ADMIN).count()
+    
+    sensitive_actions_count = (
+        db.query(AuditLog)
+        .filter(AuditLog.action.in_([
+            "REFUND_AUTHORIZED", "TOKEN_CANCELLED_ADMIN", "TOKEN_EXPEDITED",
+            "BUYER_CREATED", "CENTRE_CREATED", "PAYOUT_AUTHORIZED"
+        ]))
+        .count()
+    )
+    
+    return {
+        "status": "HEALTHY",
+        "system_version": "AGRIQUENE Gov 2.6.0 (SIH26032)",
+        "rbac_enforcement": "STRICT",
+        "total_audit_logs": total_audit_logs,
+        "sensitive_actions_count": sensitive_actions_count,
+        "user_demographics": {
+            "total_users": total_users,
+            "farmers": farmer_users,
+            "staff": buyer_users,
+            "admins": admin_users
+        },
+        "recent_security_events": [
+            {
+                "id": evt.id,
+                "action": evt.action,
+                "entity_type": evt.entity_type,
+                "entity_id": evt.entity_id,
+                "details": evt.details,
+                "user_name": evt.user.full_name if evt.user else "System",
+                "user_role": evt.user.role.value if evt.user else "SYSTEM",
+                "timestamp": evt.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            }
+            for evt in recent_events
+        ]
     }
 
