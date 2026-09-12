@@ -45,30 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("agriquene_user");
       }
     }
-
-    // Attempt dynamic login for demo farmer on fresh mount
-    async function initDemo() {
-      try {
-        const authData = await api.unifiedLogin({
-          identifier: DEMO_PRESETS.farmer.mobile,
-          password: "farmer123",
-        });
-        login(authData);
-      } catch {
-        const defaultFarmer: UserInfo = {
-          id: 1,
-          fullName: DEMO_PRESETS.farmer.name,
-          mobileNumber: DEMO_PRESETS.farmer.mobile,
-          role: "FARMER",
-          isRegistered: true,
-        };
-        setUser(defaultFarmer);
-        setToken("dev-farmer-token");
-        localStorage.setItem("agriquene_token", "dev-farmer-token");
-        localStorage.setItem("agriquene_user", JSON.stringify(defaultFarmer));
-      }
-    }
-    initDemo();
   }, []);
 
   const login = (authData: AuthResponse) => {

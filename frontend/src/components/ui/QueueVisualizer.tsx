@@ -13,38 +13,39 @@ interface QueueVisualizerProps {
 
 export function QueueVisualizer({
   queue,
-  userTokenDisplay = "#128",
-  servingTokenDisplay = "#114",
-  currentPosition = 14,
+  userTokenDisplay = "",
+  servingTokenDisplay = "",
+  currentPosition = 0,
 }: QueueVisualizerProps) {
-  // Synthesize visual token chain with historical completed tokens + waiting tokens
-  const baseServingNum = parseInt(servingTokenDisplay.replace("#", ""), 10) || 114;
-  const userNum = parseInt(userTokenDisplay.replace("#", ""), 10) || 128;
+  // Base numbers
+  const baseServingNum = servingTokenDisplay ? parseInt(servingTokenDisplay.replace("#", ""), 10) : null;
 
-  // Recent completed tokens
-  const completedTokens = [
-    { num: baseServingNum - 3, display: `#${baseServingNum - 3}`, status: "COMPLETED" },
-    { num: baseServingNum - 2, display: `#${baseServingNum - 2}`, status: "COMPLETED" },
-    { num: baseServingNum - 1, display: `#${baseServingNum - 1}`, status: "COMPLETED" },
-  ];
+  // Recent completed tokens from base serving number
+  const completedTokens = baseServingNum && baseServingNum > 100
+    ? [
+        { num: baseServingNum - 2, display: `#${baseServingNum - 2}`, status: "COMPLETED" },
+        { num: baseServingNum - 1, display: `#${baseServingNum - 1}`, status: "COMPLETED" },
+      ]
+    : [];
 
   // Active serving
-  const isUserServing = servingTokenDisplay === userTokenDisplay;
-  const servingItem = {
-    num: baseServingNum,
-    display: servingTokenDisplay,
-    status: "PROCESSING",
-    isServing: true,
-    isUser: isUserServing,
-  };
+  const isUserServing = Boolean(userTokenDisplay && servingTokenDisplay && servingTokenDisplay === userTokenDisplay);
+  const servingItem = servingTokenDisplay
+    ? {
+        display: servingTokenDisplay,
+        status: "PROCESSING",
+        isServing: true,
+        isUser: isUserServing,
+      }
+    : null;
 
-  // Build waiting queue tokens from real queue items if available
+  // Build waiting queue tokens from real queue items
   const waitingTokens: Array<{ num: number; display: string; status: string; isUser: boolean; pos: number }> = [];
   const waitingFromQueue = queue?.filter((q) => q.status === "WAITING" || q.status === "ARRIVED") || [];
 
   if (waitingFromQueue.length > 0) {
     waitingFromQueue.forEach((q) => {
-      const isUser = q.token_display === userTokenDisplay;
+      const isUser = Boolean(userTokenDisplay && q.token_display === userTokenDisplay);
       waitingTokens.push({
         num: q.token_number,
         display: q.token_display,
@@ -53,20 +54,15 @@ export function QueueVisualizer({
         pos: q.position,
       });
     });
-  } else {
-    const startWait = baseServingNum + 1;
-    const endWait = Math.max(userNum + 3, startWait + 16);
-
-    for (let i = startWait; i <= endWait; i++) {
-      const isUser = i === userNum;
-      waitingTokens.push({
-        num: i,
-        display: `#${i}`,
-        status: isUser ? "YOU" : "WAITING",
-        isUser,
-        pos: i - baseServingNum,
-      });
-    }
+  } else if (userTokenDisplay && !isUserServing) {
+    // If user has a token but queue items aren't loaded yet
+    waitingTokens.push({
+      num: 0,
+      display: userTokenDisplay,
+      status: "YOU",
+      isUser: true,
+      pos: currentPosition || 1,
+    });
   }
 
   return (
@@ -113,23 +109,27 @@ export function QueueVisualizer({
           ))}
 
           {/* Current Serving Token */}
-          <div className={`flex flex-col items-center px-4 py-2 rounded shadow-md relative ${
-            servingItem.isUser
-              ? "bg-amber-50 border-2 border-amber-500 text-amber-950 ring-2 ring-amber-300 animate-pulse"
-              : "bg-rose-50 border-2 border-[#B91C1C] text-[#B91C1C]"
-          }`}>
-            <span className={`absolute -top-2.5 text-white text-[9px] font-black uppercase px-2 py-0.2 rounded-full tracking-wider animate-pulse ${
-              servingItem.isUser ? "bg-amber-600" : "bg-[#B91C1C]"
-            }`}>
-              {servingItem.isUser ? "YOU ARE SERVING NOW!" : "SERVING NOW"}
-            </span>
-            <span className="text-sm font-black font-mono tracking-tight mt-1">
-              {servingItem.display}
-            </span>
-            <span className={`text-[10px] font-bold mt-0.5 ${servingItem.isUser ? "text-amber-800" : "text-rose-700"}`}>Counter #1</span>
-          </div>
+          {servingItem && (
+            <>
+              <div className={`flex flex-col items-center px-4 py-2 rounded shadow-md relative ${
+                servingItem.isUser
+                  ? "bg-amber-50 border-2 border-amber-500 text-amber-950 ring-2 ring-amber-300 animate-pulse"
+                  : "bg-rose-50 border-2 border-[#B91C1C] text-[#B91C1C]"
+              }`}>
+                <span className={`absolute -top-2.5 text-white text-[9px] font-black uppercase px-2 py-0.2 rounded-full tracking-wider animate-pulse ${
+                  servingItem.isUser ? "bg-amber-600" : "bg-[#B91C1C]"
+                }`}>
+                  {servingItem.isUser ? "YOU ARE SERVING NOW!" : "SERVING NOW"}
+                </span>
+                <span className="text-sm font-black font-mono tracking-tight mt-1">
+                  {servingItem.display}
+                </span>
+                <span className={`text-[10px] font-bold mt-0.5 ${servingItem.isUser ? "text-amber-800" : "text-rose-700"}`}>Counter #1</span>
+              </div>
 
-          <ArrowRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+              <ArrowRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+            </>
+          )}
 
           {/* Waiting Chain */}
           {waitingTokens.map((item) => {

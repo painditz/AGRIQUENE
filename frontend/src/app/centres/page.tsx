@@ -9,8 +9,12 @@ import {
 } from "lucide-react";
 import { api, CentreItem } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { LeafletMandiMap } from "@/components/map/LeafletMandiMap";
+import { AddressAutocomplete, SelectedLocation } from "@/components/map/AddressAutocomplete";
+import { calculateHaversineDistance } from "@/lib/utils";
 
 export default function CentresPage() {
+  const [farmerLocation, setFarmerLocation] = useState<SelectedLocation | null>(null);
   const [centres, setCentres] = useState<CentreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -328,47 +332,43 @@ export default function CentresPage() {
         </div>
       )}
 
-      {/* View: Map Locator Placeholder (Requirement 29) */}
+      {/* View: Real Interactive Leaflet + OpenStreetMap Locator */}
       {activeTab === "map" && (
         <div className="bg-white border border-slate-200 rounded p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b pb-3">
-            <h3 className="font-bold text-base text-[#0B2545] flex items-center gap-2">
-              <Navigation className="w-5 h-5 text-[#B91C1C]" /> Procurement Centre GIS Locator
-            </h3>
-            <span className="text-xs bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded border border-emerald-300">
-              OpenStreetMap / Maps API Ready
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
+            <div>
+              <h3 className="font-bold text-base text-[#0B2545] flex items-center gap-2">
+                <Navigation className="w-5 h-5 text-[#B91C1C]" /> National Mandi GIS Locator
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Powered by OpenStreetMap & Leaflet with live counter workload telemetry
+              </p>
+            </div>
+            <span className="text-xs bg-emerald-100 text-emerald-900 font-bold px-2.5 py-1 rounded border border-emerald-300 self-start sm:self-auto">
+              OpenStreetMap · Free Map
             </span>
           </div>
 
-          {/* Interactive Visual Map Card */}
-          <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg h-96 relative flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-slate-200 to-slate-100 opacity-60 pointer-events-none" />
-
-            {/* Fictional map pins */}
-            <div className="absolute top-1/4 left-1/3 bg-white border-2 border-[#0B2545] shadow-lg rounded p-2 text-xs text-center animate-bounce">
-              <p className="font-bold text-[#0B2545]">📍 Ghaziabad Mandi</p>
-              <p className="text-[10px] text-[#B91C1C] font-mono font-bold">14 Waiting (33 min)</p>
-            </div>
-
-            <div className="absolute top-1/3 right-1/4 bg-white border-2 border-[#0B2545] shadow-lg rounded p-2 text-xs text-center">
-              <p className="font-bold text-[#0B2545]">📍 Karnal APMC</p>
-              <p className="text-[10px] text-emerald-700 font-mono font-bold">8 Waiting (20 min)</p>
-            </div>
-
-            <div className="absolute bottom-1/4 left-1/2 bg-white border-2 border-[#0B2545] shadow-lg rounded p-2 text-xs text-center">
-              <p className="font-bold text-[#0B2545]">📍 Jaipur Krishi Upaj</p>
-              <p className="text-[10px] text-amber-800 font-mono font-bold">22 Waiting (55 min)</p>
-            </div>
-
-            <div className="relative z-10 bg-white/90 backdrop-blur-sm p-4 rounded border border-slate-300 max-w-sm text-center space-y-2">
-              <p className="text-xs font-bold text-[#0B2545]">
-                GPS Geospatial Radius: 25 km
-              </p>
-              <p className="text-[11px] text-slate-600">
-                Centres are dynamically ordered by driving distance and real-time counter congestion factor.
-              </p>
-            </div>
+          <div className="bg-slate-50 border border-slate-200 p-3.5 rounded space-y-2">
+            <span className="text-xs font-bold text-[#0B2545] uppercase">
+              Locate Your Farm or Village:
+            </span>
+            <AddressAutocomplete
+              onLocationSelect={(loc) => setFarmerLocation(loc)}
+              placeholder="Search address or tap Use My Current Location..."
+            />
           </div>
+
+          <LeafletMandiMap
+            centres={centres.map((c) => ({
+              ...c,
+              calculated_distance_km: farmerLocation
+                ? calculateHaversineDistance(farmerLocation.lat, farmerLocation.lng, c.latitude, c.longitude)
+                : c.distance_km,
+            }))}
+            farmerLocation={farmerLocation}
+            height="460px"
+          />
         </div>
       )}
     </div>

@@ -344,3 +344,62 @@ async def skip_token(token_id: int, db: Session = Depends(get_db)):
     )
 
     return {"success": True, "message": f"Token {token.token_display} skipped and removed from active queue.", "remaining_waiting": len(remaining_waiting)}
+
+@router.post("/{token_id}/complete")
+async def complete_token(token_id: int, db: Session = Depends(get_db)):
+    token = db.query(Token).filter(Token.id == token_id).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+        
+    token.status = TokenStatus.COMPLETED
+    token.completed_at = datetime.utcnow()
+    token.current_position = 0
+    if token.queue_entry:
+        token.queue_entry.is_active = False
+        token.queue_entry.position = 0
+
+    # Re-index remaining waiting tokens
+    remaining_waiting = (
+        db.query(Token)
+        .filter(
+            Token.centre_id == token.centre_id,
+            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED]),
+            Token.id != token.id
+        )
+        .order_by(Token.current_position.asc(), Token.id.asc())
+        .all()
+    )
+    for idx, t in enumerate(remaining_waiting):
+        new_pos = idx + 1
+        t.current_position = new_pos
+        if t.queue_entry:
+            t.queue_entry.position = new_pos
+
+    db.commit()
+
+    f_user = token.farmer.user if token.farmer else None
+    if f_user:
+        notification_service.create_notification(
+            db, f_user.id,
+            "Procurement Completed",
+            f"Your procurement cycle for token {token.token_display} is now complete.",
+            "COMPLETED"
+        )
+
+    await manager.broadcast_to_centre(str(token.centre_id), {
+        "type": "TOKEN_COMPLETED",
+        "centre_id": token.centre_id,
+        "token_id": token.id,
+        "token_display": token.token_display,
+        "timestamp": datetime.now().isoformat(),
+        "total_waiting": len(remaining_waiting)
+    })
+
+    audit_service.log_event(
+        db, action="TOKEN_COMPLETED", entity_type="TOKEN",
+        entity_id=str(token.id),
+        details=f"Token {token.token_display} marked completed by operator"
+    )
+
+    return {"success": True, "message": f"Token {token.token_display} marked as completed.", "remaining_waiting": len(remaining_waiting)}
+

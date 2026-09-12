@@ -10,6 +10,7 @@ import {
   ArrowRight, ArrowLeft, RefreshCw, AlertCircle,
   Clock, Activity, Sparkles, Navigation
 } from "lucide-react";
+import { AddressAutocomplete, SelectedLocation } from "@/components/map/AddressAutocomplete";
 
 export default function FarmerRegisterPage() {
   const router = useRouter();
@@ -335,6 +336,20 @@ export default function FarmerRegisterPage() {
                     className="w-full p-2.5 border border-slate-300 rounded text-xs outline-none focus:border-[#0B2545]"
                   />
                 </div>
+              </div>
+
+              <div className="bg-blue-50/70 border border-blue-200 rounded p-3 space-y-1.5">
+                <label className="block text-[11px] font-bold uppercase text-[#0B2545]">
+                  Search Location or Auto-Detect Address:
+                </label>
+                <AddressAutocomplete
+                  onLocationSelect={(loc) => {
+                    if (loc.name) setVillage(loc.name);
+                    if (loc.district) setDistrict(loc.district);
+                    if (loc.state) setState(loc.state);
+                  }}
+                  placeholder="Type your village or click Use My Current Location..."
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

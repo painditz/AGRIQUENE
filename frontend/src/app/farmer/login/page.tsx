@@ -12,9 +12,9 @@ export default function FarmerLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [mobileNumber, setMobileNumber] = useState(DEMO_PRESETS.farmer.mobile);
+  const [mobileNumber, setMobileNumber] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("123456");
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);

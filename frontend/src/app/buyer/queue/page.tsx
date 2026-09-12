@@ -104,6 +104,25 @@ export default function BuyerQueuePage() {
     }
   };
 
+  const handleComplete = async (tokenId: number) => {
+    if (actionLoading) return;
+    setActionLoading(true);
+    setActionLoadingId(tokenId);
+    try {
+      await api.completeToken(tokenId);
+      const msg = "Procurement weighing cycle completed successfully.";
+      setActionMessage(`✓ ${msg}`);
+      showToast(msg, "success", "Token Completed");
+      await loadQueue();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to complete token";
+      showToast(msg, "error");
+    } finally {
+      setActionLoading(false);
+      setActionLoadingId(null);
+    }
+  };
+
   return (
     <BuyerLayout>
       <div className="space-y-6">
@@ -258,6 +277,17 @@ export default function BuyerQueuePage() {
                           </button>
                         )}
 
+                        {(item.status === "CALLED" || item.status === "PROCESSING") && (
+                          <button
+                            onClick={() => handleComplete(item.token_id)}
+                            disabled={actionLoading}
+                            className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 text-[10px] font-bold px-2 py-1 rounded transition disabled:opacity-50"
+                            title="Complete weighing and procurement"
+                          >
+                            Complete
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleCallNext(item.token_id)}
                           disabled={actionLoading}
@@ -295,14 +325,12 @@ export default function BuyerQueuePage() {
                   className={`p-3.5 rounded border text-xs space-y-2 ${
                     isServing
                       ? "bg-rose-50 border-rose-300 font-semibold"
-                      : isDemoTarget
-                      ? "bg-amber-50 border-amber-300 ring-1 ring-amber-200"
                       : "bg-slate-50 border-slate-200"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-sm text-[#0B2545]">
-                      Pos #{item.position}: {item.token_display} {isDemoTarget && "(Demo)"}
+                      Pos #{item.position}: {item.token_display}
                     </span>
                     <StatusBadge status={item.status} />
                   </div>
@@ -317,7 +345,7 @@ export default function BuyerQueuePage() {
                     <span>Slot: {item.slot_time}</span>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 flex justify-end gap-1.5">
+                  <div className="pt-2 border-t border-slate-200 flex justify-end gap-1.5 flex-wrap">
                     {item.status === "WAITING" && (
                       <button
                         onClick={() => handleMarkArrived(item.token_id)}
@@ -325,6 +353,15 @@ export default function BuyerQueuePage() {
                         className="bg-blue-50 text-blue-800 border border-blue-300 text-[10px] font-bold px-2.5 py-1.5 rounded"
                       >
                         Arrived
+                      </button>
+                    )}
+                    {(item.status === "CALLED" || item.status === "PROCESSING") && (
+                      <button
+                        onClick={() => handleComplete(item.token_id)}
+                        disabled={actionLoading}
+                        className="bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-2.5 py-1.5 rounded"
+                      >
+                        Complete
                       </button>
                     )}
                     <button

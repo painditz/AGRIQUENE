@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { FarmerLayout } from "@/components/layout/FarmerLayout";
 import { QueueVisualizer } from "@/components/ui/QueueVisualizer";
 import { ETACard } from "@/components/ui/ETACard";
@@ -12,7 +13,7 @@ import { useQueueSocket } from "@/context/QueueSocketContext";
 import { api, TokenItem, CentreQueueStatus } from "@/lib/api";
 import {
   Activity, Users, Clock, Building2,
-  RefreshCw, CheckCircle2, ArrowRight, MapPin, Volume2, VolumeX, AlertTriangle
+  RefreshCw, CheckCircle2, ArrowRight, MapPin, Volume2, VolumeX, AlertTriangle, CalendarPlus
 } from "lucide-react";
 
 export default function FarmerLiveQueuePage() {
@@ -28,11 +29,14 @@ export default function FarmerLiveQueuePage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const tokenData = await api.getFarmerCurrentToken();
+      const tokenData = await api.getFarmerCurrentToken().catch(() => null);
       if (tokenData) {
         setToken(tokenData);
-        const qData = await api.getCentreQueue(tokenData.centre_id);
+        const qData = await api.getCentreQueue(tokenData.centre_id).catch(() => null);
         setQueueStatus(qData);
+      } else {
+        setToken(null);
+        setQueueStatus(null);
       }
     } catch {
       // Fallback gracefully
@@ -45,7 +49,7 @@ export default function FarmerLiveQueuePage() {
     loadData();
   }, [loadData]);
 
-  // When WebSocket fires an event (such as TOKEN_CALLED or COUNTERS_UPDATED)
+  // When WebSocket fires an event
   useEffect(() => {
     if (lastEvent) {
       loadData();
@@ -60,12 +64,12 @@ export default function FarmerLiveQueuePage() {
   return (
     <FarmerLayout>
       <div className="space-y-6">
-        {/* Top Queue Telemetry Header */}
+        {/* Top Queue Header */}
         <div className="bg-white border border-slate-200 rounded-md p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
-                REAL-TIME TELEMETRY FEED
+                LIVE PROCUREMENT QUEUE
               </span>
               <span className="text-slate-300">|</span>
               <span
@@ -85,18 +89,18 @@ export default function FarmerLiveQueuePage() {
                   }`}
                 />
                 {connectionStatus === "connected"
-                  ? t("liveUpdatesConnected")
+                  ? "Live updates on"
                   : connectionStatus === "fallback"
-                  ? t("fallbackPolling")
-                  : t("reconnecting")}
+                  ? "Updating automatically"
+                  : "Connecting for updates..."}
               </span>
             </div>
 
             <h1 className="text-2xl font-black text-[#0B2545] font-serif mt-1">
-              Live Mandi Queue & ETA Radar
+              Live Mandi Queue & Your Turn
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Centre: <strong className="text-slate-800">{token?.centre_name || "Agri Procurement Centre – Ghaziabad Mandi"}</strong>
+              Centre: <strong className="text-slate-800">{token?.centre_name || "Agri Procurement Centre"}</strong>
             </p>
           </div>
 
@@ -108,7 +112,7 @@ export default function FarmerLiveQueuePage() {
                   ? "bg-emerald-50 border-emerald-300 text-emerald-800"
                   : "bg-slate-100 border-slate-300 text-slate-600"
               }`}
-              title={soundAlertEnabled ? "Mute audio alerts" : "Enable audio chime alerts"}
+              title={soundAlertEnabled ? "Mute audio chime" : "Turn on audio chime"}
             >
               {soundAlertEnabled ? (
                 <>
@@ -129,7 +133,7 @@ export default function FarmerLiveQueuePage() {
               className="btn-gov-outline text-xs py-2 px-3 flex items-center gap-1.5 font-bold"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#0B2545]" : ""}`} />
-              <span>{loading ? "Updating..." : "Refresh Telemetry"}</span>
+              <span>{loading ? "Updating..." : "Refresh Queue"}</span>
             </button>
           </div>
         </div>
@@ -141,10 +145,10 @@ export default function FarmerLiveQueuePage() {
               <span className="text-3xl">🚨</span>
               <div>
                 <h2 className="text-xl font-black uppercase tracking-wide">
-                  {t("tokenCalledAlert")}
+                  It is your turn! Please proceed to the counter.
                 </h2>
                 <p className="text-xs text-red-100 font-medium">
-                  {t("proceedToCounterNotice")} (Token: <span className="font-mono font-bold text-white underline">{token?.token_display}</span>)
+                  Your token <span className="font-mono font-bold text-white underline">{token?.token_display}</span> has been called at Counter #1.
                 </p>
               </div>
             </div>
@@ -157,202 +161,125 @@ export default function FarmerLiveQueuePage() {
           </div>
         )}
 
-        {/* Live Queue Cards Summary Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 1. Currently Serving */}
-          <div className="bg-rose-50 border-2 border-[#B91C1C] rounded-md p-4 shadow-sm space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
-              {t("currentlyServing")}
-            </span>
-            <p className="text-3xl font-black text-[#B91C1C] font-mono">
-              {queueStatus?.current_serving_token || "#114"}
-            </p>
-            <p className="text-xs text-rose-800 font-semibold">
-              Weighbridge Counter #1
-            </p>
-          </div>
-
-          {/* 2. Your Token */}
-          <div className="bg-amber-50 border-2 border-amber-500 rounded-md p-4 shadow-sm space-y-1 ring-1 ring-amber-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">
-              {t("yourToken")}
-            </span>
-            <p className="text-3xl font-black text-[#0B2545] font-mono">
-              {token?.token_display || "#128"}
-            </p>
-            <p className="text-xs text-amber-900 font-bold">
-              Position in Queue: #{token?.current_position || 14}
-            </p>
-          </div>
-
-          {/* 3. Farmers Ahead */}
-          <div className="bg-white border border-slate-200 rounded-md p-4 shadow-sm space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              {t("farmersAhead")}
-            </span>
-            <p className="text-3xl font-black text-slate-900 font-mono">
-              {token?.current_position || 14}
-            </p>
-            <p className="text-xs text-slate-600">
-              Vehicles waiting in entry line
-            </p>
-          </div>
-
-          {/* 4. Active Counters */}
-          <div className="bg-white border border-slate-200 rounded-md p-4 shadow-sm space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Active Mandi Counters
-            </span>
-            <p className="text-3xl font-black text-[#0B2545] font-mono">
-              {queueStatus?.active_counters || 4}
-            </p>
-            <p className="text-xs text-emerald-700 font-semibold">
-              Avg Pace: {queueStatus?.avg_processing_time_min || 8} min / trolley
-            </p>
-          </div>
-        </div>
-
-        {/* Visual Token Progression Chain */}
-        {queueStatus && (
-          <QueueVisualizer
-            queue={queueStatus.queue}
-            userTokenDisplay={token?.token_display || "#128"}
-            servingTokenDisplay={queueStatus.current_serving_token || "#114"}
-            currentPosition={token?.current_position || 14}
-          />
-        )}
-
-        {/* AI ETA Card & Departure Advisory */}
-        {token && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-6">
-              <ETACard
-                waitMinutes={token.predicted_wait_minutes}
-                expectedTurnTime={token.expected_turn_time}
-                isDemoPrediction={false}
-                modelVersion="XGBoost-v1.0"
-                confidenceScore={0.94}
-                onRefresh={loadData}
-                isLoading={loading}
-              />
+        {/* No Token Empty State */}
+        {!token && !loading && (
+          <div className="bg-white border-2 border-slate-200 rounded-md p-8 text-center space-y-4 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-blue-50 text-[#0B2545] flex items-center justify-center mx-auto text-2xl border-2 border-[#0B2545]">
+              🌾
             </div>
-            <div className="lg:col-span-6 flex flex-col justify-between">
-              <DepartureAdvisory
-                expectedTurnTime={token.expected_turn_time}
-                waitMinutes={token.predicted_wait_minutes}
-                recommendedDepartureTime={token.recommended_departure_time}
-                departureAdvice={token.departure_advice}
-                urgency={token.predicted_wait_minutes <= 25 ? "high" : "normal"}
-                travelTimeMin={25}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Full Queue Table & Responsive Mobile Cards */}
-        <div className="bg-white border border-slate-200 rounded-md p-4 sm:p-5 shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b pb-3 flex-wrap gap-2">
-            <div>
-              <h3 className="font-bold text-sm text-[#0B2545] uppercase tracking-wide">
-                Detailed Live Queue Schedule (Today)
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                Sorted by physical counter assignment & queue index
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-[#0B2545] font-serif">You have no active token</h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto">
+                You currently have no active trolley tokens in the queue. Book a slot or locate a nearby mandi to join the queue.
               </p>
             </div>
-            <span className="text-xs font-bold text-[#0B2545] bg-slate-100 px-2.5 py-1 rounded">
-              Total Waiting: {queueStatus?.total_waiting || 14}
-            </span>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <Link href="/farmer/centres" className="btn-gov-outline text-xs py-2.5 px-4 font-bold flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#B91C1C]" />
+                <span>Find Mandi Centres</span>
+              </Link>
+              <Link href="/farmer/book" className="btn-gov-primary text-xs py-2.5 px-5 font-bold flex items-center gap-2">
+                <CalendarPlus className="w-4 h-4" />
+                <span>Book Slot / Get Token</span>
+              </Link>
+            </div>
           </div>
+        )}
 
-          {/* Desktop Table View */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-100 border-b border-slate-300 text-[#0B2545]">
-                  <th className="p-2.5 font-bold">Pos</th>
-                  <th className="p-2.5 font-bold">Token</th>
-                  <th className="p-2.5 font-bold">Farmer Name</th>
-                  <th className="p-2.5 font-bold">Crop & Qty</th>
-                  <th className="p-2.5 font-bold">Est. Wait</th>
-                  <th className="p-2.5 font-bold">Expected Turn</th>
-                  <th className="p-2.5 font-bold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {queueStatus?.queue.map((item) => {
-                  const isUser = item.token_display === (token?.token_display || "#128");
-                  return (
-                    <tr
-                      key={item.token_id}
-                      className={
-                        isUser
-                          ? "bg-amber-50 font-bold border-l-4 border-l-amber-500"
-                          : item.status === "CALLED" || item.status === "PROCESSING"
-                          ? "bg-rose-50/60 font-semibold"
-                          : "hover:bg-slate-50"
-                      }
-                    >
-                      <td className="p-2.5 font-mono">
-                        {item.position === 0 ? "Serving" : `#${item.position}`}
-                      </td>
-                      <td className="p-2.5 font-mono font-bold text-[#0B2545]">
-                        {item.token_display} {isUser && "(YOU)"}
-                      </td>
-                      <td className="p-2.5">{item.farmer_name}</td>
-                      <td className="p-2.5">{item.crop} ({item.quantity_quintals} Qtl)</td>
-                      <td className="p-2.5 font-mono font-bold text-[#B91C1C]">
-                        {item.estimated_wait_min} min
-                      </td>
-                      <td className="p-2.5 font-mono">{item.expected_turn_time}</td>
-                      <td className="p-2.5">
-                        <StatusBadge status={item.status} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        {/* Live Queue Cards Summary Grid */}
+        {token && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 1. Currently Serving */}
+              <div className="bg-rose-50 border-2 border-[#B91C1C] rounded-md p-4 shadow-sm space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
+                  Now Serving
+                </span>
+                <p className="text-3xl font-black text-[#B91C1C] font-mono">
+                  {queueStatus?.current_serving_token || "None"}
+                </p>
+                <p className="text-xs text-rose-800 font-semibold">
+                  Weighbridge Counter #1
+                </p>
+              </div>
 
-          {/* Mobile Cards View (eliminates awkward table clipping on phone screens) */}
-          <div className="sm:hidden space-y-2.5">
-            {queueStatus?.queue.map((item) => {
-              const isUser = item.token_display === (token?.token_display || "#128");
-              return (
-                <div
-                  key={item.token_id}
-                  className={`p-3 rounded border text-xs ${
-                    isUser
-                      ? "bg-amber-50 border-amber-400 ring-2 ring-amber-200 font-bold"
-                      : item.status === "CALLED" || item.status === "PROCESSING"
-                      ? "bg-rose-50 border-rose-300 font-semibold"
-                      : "bg-slate-50 border-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-black text-sm text-[#0B2545]">
-                      {item.token_display} {isUser && "(YOU)"}
-                    </span>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <div className="mt-1.5 flex justify-between text-slate-700">
-                    <span>{item.farmer_name}</span>
-                    <span className="font-semibold">{item.crop} · {item.quantity_quintals} Qtl</span>
-                  </div>
-                  <div className="mt-1.5 pt-1.5 border-t border-slate-200 flex justify-between items-center text-[11px]">
-                    <span className="text-slate-500 font-mono">Position: #{item.position}</span>
-                    <span className="font-mono font-bold text-[#B91C1C]">
-                      Wait ~{item.estimated_wait_min}m (Turn: {item.expected_turn_time})
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+              {/* 2. Your Token */}
+              <div className="bg-amber-50 border-2 border-amber-500 rounded-md p-4 shadow-sm space-y-1 ring-1 ring-amber-200">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">
+                  Your Token
+                </span>
+                <p className="text-3xl font-black text-[#0B2545] font-mono">
+                  {token.token_display}
+                </p>
+                <p className="text-xs text-amber-900 font-bold">
+                  Position in Queue: #{token.current_position}
+                </p>
+              </div>
+
+              {/* 3. Farmers Ahead */}
+              <div className="bg-white border border-slate-200 rounded-md p-4 shadow-sm space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  People Ahead of You
+                </span>
+                <p className="text-3xl font-black text-slate-900 font-mono">
+                  {token.current_position}
+                </p>
+                <p className="text-xs text-slate-600">
+                  Trolleys waiting in line
+                </p>
+              </div>
+
+              {/* 4. Active Counters */}
+              <div className="bg-white border border-slate-200 rounded-md p-4 shadow-sm space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Active Mandi Counters
+                </span>
+                <p className="text-3xl font-black text-[#0B2545] font-mono">
+                  {queueStatus?.active_counters || 4}
+                </p>
+                <p className="text-xs text-emerald-700 font-semibold">
+                  Avg Pace: {queueStatus?.avg_processing_time_min || 8} min / trolley
+                </p>
+              </div>
+            </div>
+
+            {/* Visual Token Progression Chain */}
+            {queueStatus && (
+              <QueueVisualizer
+                queue={queueStatus.queue}
+                userTokenDisplay={token.token_display}
+                servingTokenDisplay={queueStatus.current_serving_token || ""}
+                currentPosition={token.current_position}
+              />
+            )}
+
+            {/* ETA Card & Departure Advisory */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-6">
+                <ETACard
+                  waitMinutes={token.predicted_wait_minutes}
+                  expectedTurnTime={token.expected_turn_time}
+                  isDemoPrediction={false}
+                  modelVersion="v1.0"
+                  confidenceScore={0.95}
+                  onRefresh={loadData}
+                  isLoading={loading}
+                />
+              </div>
+              <div className="lg:col-span-6 flex flex-col justify-between">
+                <DepartureAdvisory
+                  expectedTurnTime={token.expected_turn_time}
+                  waitMinutes={token.predicted_wait_minutes}
+                  recommendedDepartureTime={token.recommended_departure_time}
+                  departureAdvice={token.departure_advice}
+                  urgency={token.predicted_wait_minutes <= 25 ? "high" : "normal"}
+                  travelTimeMin={25}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </FarmerLayout>
   );
 }
-

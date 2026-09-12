@@ -311,8 +311,13 @@ class ApiClient {
   }
 
   // Centres & Slots
-  async getCentres(district?: string, state?: string): Promise<CentreItem[]> {
-    const query = district ? `?district=${encodeURIComponent(district)}` : "";
+  async getCentres(district?: string, state?: string, lat?: number, lng?: number): Promise<CentreItem[]> {
+    const params = new URLSearchParams();
+    if (district) params.append("district", district);
+    if (state) params.append("state", state);
+    if (lat !== undefined && lat !== null) params.append("lat", lat.toString());
+    if (lng !== undefined && lng !== null) params.append("lng", lng.toString());
+    const query = params.toString() ? `?${params.toString()}` : "";
     return this.request<CentreItem[]>(`/centres${query}`);
   }
 
@@ -360,6 +365,10 @@ class ApiClient {
 
   async skipToken(tokenId: number): Promise<any> {
     return this.request(`/queue/${tokenId}/skip`, { method: "POST" });
+  }
+
+  async completeToken(tokenId: number): Promise<any> {
+    return this.request(`/queue/${tokenId}/complete`, { method: "POST" });
   }
 
   // ETA

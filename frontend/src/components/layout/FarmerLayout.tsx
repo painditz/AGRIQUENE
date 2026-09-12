@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   Home, CalendarPlus, Activity, FileCheck2, CreditCard,
   History, Bell, User, MapPin, MessageSquare
@@ -17,12 +18,16 @@ interface FarmerLayoutProps {
 export function FarmerLayout({ children }: FarmerLayoutProps) {
   const pathname = usePathname();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [showSMSModal, setShowSMSModal] = useState(false);
 
-  const navItems = [
+  const farmerName =
+    user?.fullName && user.fullName !== "New Farmer" ? user.fullName : "Farmer Account";
+
+  const navItems: { name: string; href: string; icon: any; badge?: string }[] = [
     { name: "Dashboard", href: "/farmer/dashboard", icon: Home },
     { name: "Book Slot", href: "/farmer/book", icon: CalendarPlus },
-    { name: "Live Queue", href: "/farmer/queue", icon: Activity, badge: "#128" },
+    { name: "Live Queue", href: "/farmer/queue", icon: Activity },
     { name: "Mandi Centres", href: "/farmer/centres", icon: MapPin },
     { name: "Procurement", href: "/farmer/procurement", icon: FileCheck2 },
     { name: "DBT Payments", href: "/farmer/payments", icon: CreditCard },
@@ -49,8 +54,8 @@ export function FarmerLayout({ children }: FarmerLayoutProps) {
               🌾 Farmer Self-Service Portal
             </span>
             <span className="text-slate-400 text-xs hidden sm:inline">|</span>
-            <span className="text-slate-300 text-xs hidden sm:inline">
-              Ramesh Kumar Sharma (Token #128)
+            <span className="text-slate-300 text-xs hidden sm:inline font-semibold">
+              {farmerName}
             </span>
           </div>
 

@@ -28,13 +28,13 @@ export default function AdminDashboardPage() {
   }, []);
 
   const ov = dashboardData?.overview || {
-    total_farmers: 14820,
-    active_centres: 5,
-    today_bookings: 384,
-    currently_waiting: 68,
-    completed_procurements: 316,
-    pending_payments: 14,
-    total_procurement_value_inr: 21450000.0,
+    total_farmers: 0,
+    active_centres: 0,
+    today_bookings: 0,
+    currently_waiting: 0,
+    completed_procurements: 0,
+    pending_payments: 0,
+    total_procurement_value_inr: 0,
   };
 
   return (

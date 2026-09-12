@@ -1,3 +1,4 @@
+import math
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -8,10 +9,20 @@ from ..services.eta_service import eta_service
 
 router = APIRouter(prefix="/centres", tags=["Procurement Centres"])
 
+def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0  # Earth's radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return round(R * c, 1)
+
 @router.get("", response_model=List[CentreResponse])
 def list_centres(
     district: Optional[str] = None,
     state: Optional[str] = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(ProcurementCentre)
@@ -23,8 +34,8 @@ def list_centres(
     centres = query.all()
     results = []
     
-    # Distance mock table based on centre code
-    distances = {
+    # Fallback distance table based on centre code
+    default_distances = {
         "APC-UP-GZB-01": 2.4,
         "APC-HR-KNL-02": 4.8,
         "APC-RJ-JPR-03": 6.2,
@@ -51,6 +62,12 @@ def list_centres(
         # Calculate centre average wait time
         est_wait = max(5, int(round((waiting_count * c.avg_processing_time_min) / max(1, c.active_counters))))
         
+        # Real Haversine distance if lat/lng are provided
+        if lat is not None and lng is not None:
+            dist = _haversine(lat, lng, c.latitude, c.longitude)
+        else:
+            dist = default_distances.get(c.code, 3.5)
+
         results.append(CentreResponse(
             id=c.id,
             name=c.name,
@@ -73,7 +90,7 @@ def list_centres(
             current_waiting_count=waiting_count,
             estimated_wait_min=est_wait,
             available_slots_today=total_avail,
-            distance_km=distances.get(c.code, 3.5)
+            distance_km=dist
         ))
     return results
 

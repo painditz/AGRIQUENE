@@ -55,10 +55,10 @@ export function MainNavigation() {
           <div className="hidden md:flex items-center gap-2 text-xs">
             <Link
               href="/farmer/queue"
-              className="bg-[#B91C1C] hover:bg-[#991B1B] text-white px-2.5 py-1 rounded font-bold flex items-center gap-1 shadow-sm"
+              className="bg-[#B91C1C] hover:bg-[#991B1B] text-white px-3 py-1.5 rounded font-bold flex items-center gap-1.5 shadow-sm"
             >
-              <Activity className="w-3 h-3 animate-pulse" />
-              <span>LIVE QUEUE #128</span>
+              <Activity className="w-3.5 h-3.5 animate-pulse" />
+              <span>LIVE QUEUE</span>
             </Link>
           </div>
 
