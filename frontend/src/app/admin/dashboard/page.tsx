@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { formatINR } from "@/lib/utils";
 import {
   Users, Building2, Calendar, Activity, CheckCircle2,
-  CreditCard, ArrowRight, BarChart3, Cpu, Sliders
+  CreditCard, ArrowRight, BarChart3, Cpu, Sliders, Ticket
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -144,6 +144,20 @@ export default function AdminDashboardPage() {
             <h3 className="font-bold text-sm text-[#0B2545]">Centres & Capacity Management</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
               Configure mandi capacity, active counters, operating hours, and location geo-coordinates.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/tokens"
+            className="bg-white border border-slate-200 rounded p-5 shadow-sm hover:border-[#0B2545] transition space-y-2 block"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700">Surveillance</span>
+              <Ticket className="w-5 h-5 text-amber-600" />
+            </div>
+            <h3 className="font-bold text-sm text-[#0B2545]">Live Token & Queue Oversight</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Track farmer queue positions, inspect dossier records, expedite priority deliveries, or cancel slots.
             </p>
           </Link>
 

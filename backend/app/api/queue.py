@@ -5,9 +5,10 @@ from typing import List, Optional
 from ..db.session import get_db
 from ..models.models import (
     ProcurementCentre, Token, TokenStatus, QueueEntry,
-    Farmer, User, Booking
+    Farmer, User, Booking, UserRole
 )
 from ..schemas.schemas import CentreQueueStatusResponse, QueueItem, QueueCallRequest
+from ..core.security import require_role
 from ..services.eta_service import eta_service
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
@@ -114,7 +115,12 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
     )
 
 @router.post("/call-next")
-async def call_next_token(payload: QueueCallRequest, centre_id: Optional[int] = None, db: Session = Depends(get_db)):
+async def call_next_token(
+    payload: QueueCallRequest,
+    centre_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+):
     # If token_id specified, resolve centre from token
     if payload.token_id:
         target_token = db.query(Token).filter(Token.id == payload.token_id).first()
@@ -254,7 +260,11 @@ async def call_next_token(payload: QueueCallRequest, centre_id: Optional[int] = 
     }
 
 @router.post("/{token_id}/arrived")
-async def mark_farmer_arrived(token_id: int, db: Session = Depends(get_db)):
+async def mark_farmer_arrived(
+    token_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
@@ -289,7 +299,11 @@ async def mark_farmer_arrived(token_id: int, db: Session = Depends(get_db)):
     return {"success": True, "message": f"Token {token.token_display} marked as arrived at centre gate."}
 
 @router.post("/{token_id}/processing")
-async def start_token_processing(token_id: int, db: Session = Depends(get_db)):
+async def start_token_processing(
+    token_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
@@ -315,7 +329,11 @@ async def start_token_processing(token_id: int, db: Session = Depends(get_db)):
     return {"success": True, "message": f"Token {token.token_display} is now being processed on weighbridge."}
 
 @router.post("/{token_id}/skip")
-async def skip_token(token_id: int, db: Session = Depends(get_db)):
+async def skip_token(
+    token_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
@@ -363,7 +381,11 @@ async def skip_token(token_id: int, db: Session = Depends(get_db)):
     return {"success": True, "message": f"Token {token.token_display} skipped and removed from active queue.", "remaining_waiting": len(remaining_waiting)}
 
 @router.post("/{token_id}/complete")
-async def complete_token(token_id: int, db: Session = Depends(get_db)):
+async def complete_token(
+    token_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")

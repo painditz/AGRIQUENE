@@ -551,6 +551,18 @@ class ApiClient {
     });
   }
 
+  async cancelBooking(bookingId: number): Promise<any> {
+    return this.request(`/bookings/${bookingId}/cancel`, {
+      method: "POST",
+    });
+  }
+
+  async cancelToken(tokenId: number): Promise<any> {
+    return this.request(`/bookings/tokens/${tokenId}/cancel`, {
+      method: "POST",
+    });
+  }
+
   // Crops Master
   async getCrops(): Promise<CropItem[]> {
     return this.request<CropItem[]>("/crops");
@@ -674,6 +686,13 @@ class ApiClient {
     if (params?.status) q.append("status", params.status);
     if (params?.search) q.append("search", params.search);
     return this.request<any[]>(`/admin/tokens?${q.toString()}`);
+  }
+
+  async adminTokenAction(tokenId: number, action: "EXPEDITE" | "VERIFY" | "CANCEL", reason?: string): Promise<any> {
+    return this.request(`/admin/tokens/${tokenId}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action, reason }),
+    });
   }
 
   async getAdminSlots(centre_id?: number, date?: string): Promise<any[]> {

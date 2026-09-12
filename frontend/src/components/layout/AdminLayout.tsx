@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   ShieldCheck, LayoutDashboard, Building2, Calendar,
-  Users, UserCog, BarChart3, Cpu, Settings, AlertTriangle, ArrowLeft, Lock, CreditCard
+  Users, UserCog, BarChart3, Cpu, Settings, AlertTriangle, ArrowLeft, Lock, CreditCard, Ticket
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -20,6 +20,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const adminNav = [
     { name: "Executive Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Live Token Oversight", href: "/admin/tokens", icon: Ticket, badge: "Live" },
     { name: "DBT & Payments", href: "/admin/payments", icon: CreditCard, badge: "PFMS" },
     { name: "Operations Analytics", href: "/admin/analytics", icon: BarChart3 },
     { name: "XGBoost ML Models", href: "/admin/ml-models", icon: Cpu, badge: "AI Core" },

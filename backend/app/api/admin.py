@@ -323,33 +323,119 @@ def list_tokens_admin(
     query = db.query(Token).join(Farmer, Token.farmer_id == Farmer.id).join(User, Farmer.user_id == User.id)
     if centre_id:
         query = query.filter(Token.centre_id == centre_id)
-    if status:
-        query = query.filter(Token.status == status)
+    if status and status.upper() != "ALL":
+        query = query.filter(Token.status == status.upper())
     if search:
+        s = f"%{search.strip()}%"
         query = query.filter(
-            (User.full_name.ilike(f"%{search}%")) |
-            (User.mobile_number.ilike(f"%{search}%")) |
-            (Token.token_display.ilike(f"%{search}%"))
+            (User.full_name.ilike(s)) |
+            (User.mobile_number.ilike(s)) |
+            (Token.token_display.ilike(s)) |
+            (Farmer.farmer_id_card.ilike(s))
         )
 
     tokens = query.order_by(Token.id.desc()).limit(limit).all()
     results = []
     for t in tokens:
+        farmer_user = t.farmer.user if t.farmer else None
+        proc = db.query(ProcurementRecord).filter(ProcurementRecord.token_id == t.id).first()
+        payout = db.query(Payout).filter(Payout.procurement_id == proc.id).first() if proc else None
+
         results.append({
             "id": t.id,
             "token_number": t.token_number,
             "token_display": t.token_display,
-            "farmer_name": t.farmer.user.full_name if t.farmer else "Unknown",
-            "farmer_mobile": t.farmer.user.mobile_number if t.farmer else "",
+            "farmer_id": t.farmer_id,
+            "farmer_name": farmer_user.full_name if farmer_user else "Unknown",
+            "farmer_mobile": farmer_user.mobile_number if farmer_user else "",
+            "farmer_id_card": t.farmer.farmer_id_card if t.farmer else None,
+            "farmer_village": t.farmer.village if t.farmer else None,
+            "farmer_district": t.farmer.district if t.farmer else None,
             "centre_id": t.centre_id,
             "centre_name": t.centre.name if t.centre else "Unknown",
-            "status": t.status.value,
-            "current_position": t.current_position,
             "crop": t.booking.crop_type if t.booking else "Wheat",
             "quantity": t.booking.estimated_quantity_quintals if t.booking else 0.0,
+            "booking_reference": t.booking.booking_reference if t.booking else None,
+            "slot_date": t.slot.date if t.slot else None,
+            "slot_time": f"{t.slot.start_time} - {t.slot.end_time}" if t.slot else None,
+            "status": t.status.value,
+            "current_position": t.current_position,
+            "is_arrived": t.status in [TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING, TokenStatus.COMPLETED],
+            "arrived_at": t.arrived_at.strftime("%Y-%m-%d %H:%M:%S") if t.arrived_at else None,
+            "called_at": t.called_at.strftime("%Y-%m-%d %H:%M:%S") if t.called_at else None,
+            "started_at": t.started_at.strftime("%Y-%m-%d %H:%M:%S") if t.started_at else None,
+            "completed_at": t.completed_at.strftime("%Y-%m-%d %H:%M:%S") if t.completed_at else None,
+            "procurement_record": {
+                "id": proc.id,
+                "receipt_number": proc.receipt_number,
+                "gross_weight": proc.gross_weight_quintals,
+                "tare_weight": proc.tare_weight_quintals,
+                "net_weight": proc.net_weight_quintals,
+                "moisture_pct": proc.moisture_pct,
+                "quality_grade": proc.quality_grade,
+                "base_msp": proc.base_msp,
+                "bonus_amount": proc.bonus_amount,
+                "total_amount": proc.total_amount,
+                "verified_at": proc.verified_at.strftime("%Y-%m-%d %H:%M:%S") if proc.verified_at else None
+            } if proc else None,
+            "payout": {
+                "id": payout.id,
+                "payout_ref": payout.payout_ref,
+                "utr_number": payout.utr_number,
+                "amount": payout.amount,
+                "status": payout.status.value,
+                "bank_account_masked": payout.bank_account_masked
+            } if payout else None,
             "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
     return results
+
+@router.post("/tokens/{token_id}/action")
+def admin_token_action(
+    token_id: int,
+    action: str = Body(..., embed=True), # "EXPEDITE", "VERIFY", "CANCEL"
+    reason: Optional[str] = Body(None, embed=True),
+    current_admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: Session = Depends(get_db)
+):
+    token = db.query(Token).filter(Token.id == token_id).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+        
+    act_upper = action.upper()
+    if act_upper == "EXPEDITE":
+        token.current_position = 1
+        db.commit()
+        audit_service.log_event(
+            db, action="TOKEN_EXPEDITED", entity_type="TOKEN",
+            entity_id=str(token.id), user_id=current_admin.id,
+            details=f"Admin {current_admin.full_name} expedited token {token.token_display} to position #1. Reason: {reason or 'Administrative priority'}"
+        )
+        return {"success": True, "message": f"Token {token.token_display} expedited to Position #1"}
+    elif act_upper == "VERIFY":
+        audit_service.log_event(
+            db, action="TOKEN_VERIFIED", entity_type="TOKEN",
+            entity_id=str(token.id), user_id=current_admin.id,
+            details=f"Admin {current_admin.full_name} verified farmer KYC & produce eligibility for token {token.token_display}"
+        )
+        return {"success": True, "message": f"Token {token.token_display} KYC & produce eligibility verified by Admin"}
+    elif act_upper == "CANCEL":
+        token.status = TokenStatus.CANCELLED
+        token.current_position = 0
+        if token.queue_entry:
+            token.queue_entry.is_active = False
+            token.queue_entry.position = 0
+        if token.booking:
+            token.booking.status = BookingStatus.CANCELLED
+        db.commit()
+        audit_service.log_event(
+            db, action="TOKEN_CANCELLED_ADMIN", entity_type="TOKEN",
+            entity_id=str(token.id), user_id=current_admin.id,
+            details=f"Admin {current_admin.full_name} cancelled token {token.token_display}. Reason: {reason or 'Administrative cancellation'}"
+        )
+        return {"success": True, "message": f"Token {token.token_display} cancelled by Admin"}
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown admin action '{action}'. Supported: EXPEDITE, VERIFY, CANCEL")
 
 # -------------------------------------------------------------
 # Admin Payment Management

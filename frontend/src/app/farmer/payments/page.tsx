@@ -795,7 +795,98 @@ export default function FarmerPaymentsPage() {
             </div>
           </div>
         )}
+
+        {/* How Payments & Government DBT Work (Requirement 18) */}
+        <div className="bg-white border border-slate-200 rounded-md p-6 shadow-sm space-y-5">
+          <div className="border-b border-slate-200 pb-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
+              STATE BENEFICIARY TRANSPARENCY
+            </span>
+            <h3 className="text-lg font-black text-[#0B2545] font-serif mt-0.5">
+              How Procurement Payments & DBT Work
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Transparent 7-step government lifecycle from weighbridge produce certification to direct bank account settlement.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Step 1 */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-1.5 relative">
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white text-[10px] font-black inline-flex items-center justify-center">1</span>
+              <h4 className="text-xs font-bold text-[#0B2545]">Weighbridge Measurement</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Trolley is weighed on certified scales. Net Weight is calculated authoritatively: <strong>Net = Gross − Tare</strong>.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-1.5 relative">
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white text-[10px] font-black inline-flex items-center justify-center">2</span>
+              <h4 className="text-xs font-bold text-[#0B2545]">Quality & Moisture Test</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Digital moisture meter evaluates produce (≤ 14.0%). Quality grade (Grade A / Fair Average Quality) is certified.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-1.5 relative">
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white text-[10px] font-black inline-flex items-center justify-center">3</span>
+              <h4 className="text-xs font-bold text-[#0B2545]">Server-Side Calculation</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Total payable amount is authoritatively calculated on backend: <strong>(Net Qtl × Benchmark MSP) + Incentive Bonus</strong>.
+              </p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-1.5 relative">
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white text-[10px] font-black inline-flex items-center justify-center">4</span>
+              <h4 className="text-xs font-bold text-[#0B2545]">DBT Payout Created</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Official procurement receipt issued (<span className="font-mono">RCPT-...</span>) and outbound payout is queued in state treasury ledger.
+              </p>
+            </div>
+
+            {/* Step 5 */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-1.5 relative">
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white text-[10px] font-black inline-flex items-center justify-center">5</span>
+              <h4 className="text-xs font-bold text-[#0B2545]">PFMS / Treasury Clearance</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Authorized directive officer approves disbursement. Public Financial Management System generates unique banking UTR.
+              </p>
+            </div>
+
+            {/* Step 6 */}
+            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 space-y-1.5 relative">
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white text-[10px] font-black inline-flex items-center justify-center">6</span>
+              <h4 className="text-xs font-bold text-[#0B2545]">Real-Time Notification</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Automated SMS & in-app alert dispatched to farmer with disbursement amount, UTR number, and credited account details.
+              </p>
+            </div>
+
+            {/* Step 7 */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded p-3.5 space-y-1.5 relative col-span-1 md:col-span-2">
+              <span className="w-5 h-5 rounded-full bg-emerald-800 text-white text-[10px] font-black inline-flex items-center justify-center">7</span>
+              <h4 className="text-xs font-bold text-emerald-900">Direct Bank Account Credit</h4>
+              <p className="text-[11px] text-emerald-800 leading-relaxed">
+                Full procurement proceeds credited directly to the farmer&apos;s linked bank account without intermediaries or broker commissions.
+              </p>
+            </div>
+          </div>
+
+          {/* Operational Policy & Sandbox Disclaimer */}
+          <div className="bg-amber-50 border border-amber-300 rounded p-3.5 text-xs text-amber-900 space-y-1">
+            <p className="font-bold flex items-center gap-1.5">
+              <span>🏛️ Financial Policy & Operational Distinction:</span>
+            </p>
+            <p className="text-[11px] leading-relaxed text-amber-800">
+              Crop procurement proceeds are disbursed <strong>exclusively via Government Direct Benefit Transfer (DBT)</strong> directly to your Aadhaar-seeded or verified bank account. Inbound token fees and gate services utilize <strong>Razorpay Test Sandbox Mode</strong> for demonstration and integration testing, and do not represent actual government treasury withdrawals.
+            </p>
+          </div>
+        </div>
       </div>
+
       {/* Razorpay Test Gateway Simulator Modal (Requirement 12) */}
       {testOrderModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-200">

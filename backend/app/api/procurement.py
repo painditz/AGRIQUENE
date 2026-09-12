@@ -6,9 +6,11 @@ from typing import List, Optional
 from ..db.session import get_db
 from ..models.models import (
     Token, TokenStatus, ProcurementRecord, Payment,
-    PaymentStatus, Payout, PayoutStatus, Crop, Buyer, Farmer
+    PaymentStatus, Payout, PayoutStatus, Crop, Buyer, Farmer,
+    UserRole, User
 )
 from ..schemas.schemas import ProcurementSubmitRequest, ProcurementResponse
+from ..core.security import require_role
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
 from ..services.payment_service import payment_service
@@ -18,7 +20,11 @@ from ..core.websocket import manager
 router = APIRouter(prefix="/procurement", tags=["Procurement Execution"])
 
 @router.post("", response_model=ProcurementResponse)
-async def submit_procurement(payload: ProcurementSubmitRequest, db: Session = Depends(get_db)):
+async def submit_procurement(
+    payload: ProcurementSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+):
     token = db.query(Token).filter(Token.id == payload.token_id).first()
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")

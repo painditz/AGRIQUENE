@@ -61,11 +61,6 @@ def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     if not authorization:
-        # Development fallback mode if allowed
-        if getattr(settings, "MOCK_OTP_MODE", True):
-            user = db.query(User).filter(User.role == UserRole.FARMER).first()
-            if user:
-                return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication token required. Please log in."

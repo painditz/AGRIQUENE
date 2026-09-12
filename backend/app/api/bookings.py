@@ -31,12 +31,38 @@ async def create_booking(
     if not centre:
         raise HTTPException(status_code=404, detail="Procurement Centre not found")
         
-    slot = db.query(Slot).filter(Slot.id == payload.slot_id, Slot.centre_id == centre.id).first()
-    if not slot or not slot.is_active:
-        raise HTTPException(status_code=404, detail="Selected slot is invalid or unavailable")
-        
-    if slot.booked_count >= slot.capacity:
-        raise HTTPException(status_code=400, detail="This time slot is full. Please choose another slot.")
+    # Prevent duplicate active bookings by the same farmer
+    active_token = (
+        db.query(Token)
+        .filter(
+            Token.farmer_id == farmer.id,
+            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING])
+        )
+        .first()
+    )
+    if active_token:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You already have an active token ({active_token.token_display}) in the queue. Please complete or cancel it before booking a new slot."
+        )
+
+    # Server-side atomic capacity check to prevent race conditions on final available slot
+    updated_rows = (
+        db.query(Slot)
+        .filter(
+            Slot.id == payload.slot_id,
+            Slot.centre_id == centre.id,
+            Slot.is_active == True,
+            Slot.booked_count < Slot.capacity
+        )
+        .update({"booked_count": Slot.booked_count + 1})
+    )
+    if not updated_rows:
+        raise HTTPException(
+            status_code=400,
+            detail="This slot is no longer available. Please choose another slot."
+        )
+    slot = db.query(Slot).filter(Slot.id == payload.slot_id).first()
 
     # Generate next sequential token number for this centre today
     latest_token = (
@@ -98,8 +124,6 @@ async def create_booking(
     )
     db.add(queue_entry)
 
-    # Increment slot booked count
-    slot.booked_count += 1
     db.commit()
     db.refresh(token_obj)
     db.refresh(booking)
@@ -179,3 +203,100 @@ async def create_booking(
         active_counters=centre.active_counters,
         created_at=token_obj.created_at
     )
+
+@router.post("/{booking_id}/cancel")
+async def cancel_booking(
+    booking_id: int,
+    user: User = Depends(get_current_farmer_user),
+    db: Session = Depends(get_db)
+):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking record not found")
+        
+    farmer = db.query(Farmer).filter(Farmer.user_id == user.id).first()
+    if user.role == UserRole.FARMER and (not farmer or booking.farmer_id != farmer.id):
+        raise HTTPException(status_code=403, detail="You can only cancel your own bookings")
+        
+    token = booking.token
+    if not token:
+        raise HTTPException(status_code=404, detail="Associated token record not found")
+        
+    if token.status in [TokenStatus.PROCESSING, TokenStatus.COMPLETED]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot cancel booking once procurement or weighing has started."
+        )
+        
+    if booking.status == BookingStatus.CANCELLED:
+        return {"success": True, "message": "Booking is already cancelled."}
+
+    # Cancel booking & token
+    booking.status = BookingStatus.CANCELLED
+    token.status = TokenStatus.CANCELLED
+    token.current_position = 0
+    
+    if token.queue_entry:
+        token.queue_entry.is_active = False
+        token.queue_entry.position = 0
+
+    # Atomically release slot capacity
+    db.query(Slot).filter(Slot.id == booking.slot_id, Slot.booked_count > 0).update({
+        "booked_count": Slot.booked_count - 1
+    })
+
+    # Re-index remaining waiting tokens at centre
+    remaining_waiting = (
+        db.query(Token)
+        .filter(
+            Token.centre_id == token.centre_id,
+            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED])
+        )
+        .order_by(Token.current_position.asc(), Token.id.asc())
+        .all()
+    )
+    for idx, t in enumerate(remaining_waiting):
+        new_pos = idx + 1
+        t.current_position = new_pos
+        if t.queue_entry:
+            t.queue_entry.position = new_pos
+
+    db.commit()
+
+    # WebSocket notifications
+    await manager.broadcast_to_centre(str(token.centre_id), {
+        "type": "TOKEN_CANCELLED",
+        "centre_id": token.centre_id,
+        "token_id": token.id,
+        "token_display": token.token_display,
+        "timestamp": datetime.now().isoformat(),
+        "total_waiting": len(remaining_waiting)
+    })
+    await manager.broadcast_global({
+        "type": "QUEUE_UPDATED",
+        "centre_id": token.centre_id,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    audit_service.log_event(
+        db, action="BOOKING_CANCELLED", entity_type="BOOKING",
+        entity_id=str(booking.id), user_id=user.id,
+        details=f"Farmer {user.full_name} cancelled booking {booking.booking_reference} (Token {token.token_display})"
+    )
+
+    return {
+        "success": True,
+        "message": f"Booking {booking.booking_reference} ({token.token_display}) has been cancelled successfully and slot capacity released.",
+        "remaining_waiting": len(remaining_waiting)
+    }
+
+@router.post("/tokens/{token_id}/cancel")
+async def cancel_token(
+    token_id: int,
+    user: User = Depends(get_current_farmer_user),
+    db: Session = Depends(get_db)
+):
+    token = db.query(Token).filter(Token.id == token_id).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+    return await cancel_booking(token.booking_id, user, db)

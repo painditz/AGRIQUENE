@@ -9,22 +9,25 @@ import { DepartureAdvisory } from "@/components/ui/DepartureAdvisory";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useToast } from "@/context/ToastContext";
 import { useQueueSocket } from "@/context/QueueSocketContext";
 import { api, TokenItem, CentreQueueStatus } from "@/lib/api";
 import {
   Activity, Users, Clock, Building2,
-  RefreshCw, CheckCircle2, ArrowRight, MapPin, Volume2, VolumeX, AlertTriangle, CalendarPlus
+  RefreshCw, CheckCircle2, ArrowRight, MapPin, Volume2, VolumeX, AlertTriangle, CalendarPlus, Trash2
 } from "lucide-react";
 
 export default function FarmerLiveQueuePage() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { showToast } = useToast();
   const { lastEvent, connectionStatus, playAlertSound, setActiveCentreId } = useQueueSocket();
 
   const [token, setToken] = useState<TokenItem | null>(null);
   const [queueStatus, setQueueStatus] = useState<CentreQueueStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [soundAlertEnabled, setSoundAlertEnabled] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -73,6 +76,24 @@ export default function FarmerLiveQueuePage() {
     window.addEventListener("mandi-changed", handleMandiChanged);
     return () => window.removeEventListener("mandi-changed", handleMandiChanged);
   }, [loadData]);
+
+  const handleCancelBooking = async () => {
+    if (!token) return;
+    if (!confirm(`Are you sure you want to cancel your booking for Token ${token.token_display}? Your queue position will be forfeited and the slot capacity will be released.`)) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await api.cancelToken(token.id);
+      showToast(`Token ${token.token_display} has been cancelled successfully.`, "success");
+      await loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to cancel booking.";
+      showToast(msg, "error");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const isCalled = token?.status === "CALLED";
 
@@ -220,9 +241,26 @@ export default function FarmerLiveQueuePage() {
 
               {/* 2. Your Token */}
               <div className="bg-amber-50 border-2 border-amber-500 rounded-md p-4 shadow-sm space-y-1 ring-1 ring-amber-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">
-                  Your Token
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">
+                    Your Token
+                  </span>
+                  {(token.status === "WAITING" || token.status === "ARRIVED") && (
+                    <button
+                      type="button"
+                      onClick={handleCancelBooking}
+                      disabled={cancelling}
+                      className="text-[10px] text-red-600 hover:text-red-800 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                    >
+                      {cancelling ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                      <span>Cancel Slot</span>
+                    </button>
+                  )}
+                </div>
                 <p className="text-3xl font-black text-[#0B2545] font-mono">
                   {token.token_display}
                 </p>
