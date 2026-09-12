@@ -2,38 +2,74 @@
 
 import React, { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { api, SlotItem } from "@/lib/api";
-import { Calendar, Sliders, CheckCircle2, RefreshCw } from "lucide-react";
+import { api, SlotItem, CentreItem } from "@/lib/api";
+import { Calendar, Sliders, CheckCircle2, RefreshCw, Building2 } from "lucide-react";
 
 export default function AdminSlotsPage() {
+  const [centres, setCentres] = useState<CentreItem[]>([]);
+  const [selectedCentreId, setSelectedCentreId] = useState<number | null>(null);
   const [slots, setSlots] = useState<SlotItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Load available centres
   useEffect(() => {
-    async function load() {
+    async function loadCentres() {
       try {
-        const data = await api.getCentreSlots(1);
+        const data = await api.getCentres();
+        setCentres(data);
+        if (data.length > 0 && !selectedCentreId) {
+          setSelectedCentreId(data[0].id);
+        }
+      } catch {}
+    }
+    loadCentres();
+  }, [selectedCentreId]);
+
+  // Load slots for selected centre
+  useEffect(() => {
+    if (!selectedCentreId) return;
+    async function load() {
+      setLoading(true);
+      try {
+        const data = await api.getCentreSlots(selectedCentreId as number);
         setSlots(data);
       } catch {} finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [selectedCentreId]);
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded p-5 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
-            SLOT SCHEDULER & LOAD LEVELLING
-          </span>
-          <h1 className="text-2xl font-extrabold text-[#0B2545] font-serif mt-0.5">
-            Procurement Slot Quotas
-          </h1>
-          <p className="text-xs text-slate-500">
-            Control hourly capacity allocations to prevent peak morning vehicle gridlocks.
-          </p>
+        <div className="bg-white border border-slate-200 rounded p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
+              SLOT SCHEDULER & LOAD LEVELLING
+            </span>
+            <h1 className="text-2xl font-extrabold text-[#0B2545] font-serif mt-0.5">
+              Procurement Slot Quotas
+            </h1>
+            <p className="text-xs text-slate-500">
+              Control hourly capacity allocations to prevent peak morning vehicle gridlocks.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-700">Mandi:</label>
+            <select
+              value={selectedCentreId || ""}
+              onChange={(e) => setSelectedCentreId(parseInt(e.target.value))}
+              className="p-2 border border-slate-300 rounded text-xs bg-white font-bold text-[#0B2545] outline-none"
+            >
+              {centres.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.district})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded p-5 shadow-sm space-y-4">

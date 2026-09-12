@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Smartphone, Lock, ShieldCheck, ArrowRight, RefreshCw, KeyRound, CheckCircle2 } from "lucide-react";
-import { DEMO_PRESETS } from "@/lib/constants";
 
 export default function FarmerLoginPage() {
   const router = useRouter();
@@ -110,18 +109,6 @@ export default function FarmerLoginPage() {
                 <p className="text-[11px] text-slate-500 mt-1">
                   We will send a 6-digit One Time Password (OTP) via SMS.
                 </p>
-              </div>
-
-              {/* Demo Hint */}
-              <div className="bg-blue-50 border border-blue-200 p-2.5 rounded text-[11px] text-blue-900 flex items-center justify-between">
-                <span>Demo Farmer: <strong>9876543210</strong></span>
-                <button
-                  type="button"
-                  onClick={() => setMobileNumber(DEMO_PRESETS.farmer.mobile)}
-                  className="font-bold text-[#0B2545] underline text-[10px]"
-                >
-                  Use Demo
-                </button>
               </div>
 
               <button

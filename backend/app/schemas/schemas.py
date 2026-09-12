@@ -117,7 +117,21 @@ class CentreResponse(BaseModel):
     current_waiting_count: int = 0
     estimated_wait_min: int = 0
     available_slots_today: int = 0
-    distance_km: Optional[float] = 3.5
+    distance_km: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+class CropResponse(BaseModel):
+    id: int
+    name: str
+    hindi_name: Optional[str] = None
+    msp_per_quintal: float
+    standard_moisture_pct: float
+    max_moisture_pct: float
+    grade_a_premium: float
+    season: str
+    is_active: bool
 
     class Config:
         from_attributes = True

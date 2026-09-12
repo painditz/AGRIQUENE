@@ -34,15 +34,6 @@ def list_centres(
     centres = query.all()
     results = []
     
-    # Fallback distance table based on centre code
-    default_distances = {
-        "APC-UP-GZB-01": 2.4,
-        "APC-HR-KNL-02": 4.8,
-        "APC-RJ-JPR-03": 6.2,
-        "APC-PB-LDH-04": 3.1,
-        "APC-MP-BPL-05": 5.5
-    }
-    
     for c in centres:
         # Count currently waiting tokens
         waiting_count = (
@@ -62,11 +53,8 @@ def list_centres(
         # Calculate centre average wait time
         est_wait = max(5, int(round((waiting_count * c.avg_processing_time_min) / max(1, c.active_counters))))
         
-        # Real Haversine distance if lat/lng are provided
-        if lat is not None and lng is not None:
-            dist = _haversine(lat, lng, c.latitude, c.longitude)
-        else:
-            dist = default_distances.get(c.code, 3.5)
+        # Real Haversine distance if lat/lng are provided, otherwise None
+        dist = _haversine(lat, lng, c.latitude, c.longitude) if (lat is not None and lng is not None) else None
 
         results.append(CentreResponse(
             id=c.id,

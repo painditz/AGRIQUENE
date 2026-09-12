@@ -10,7 +10,7 @@ export interface FarmerLocation {
 }
 
 interface LeafletMandiMapProps {
-  centres: (CentreItem & { calculated_distance_km?: number })[];
+  centres: (CentreItem & { calculated_distance_km?: number | null })[];
   farmerLocation?: FarmerLocation | null;
   selectedCentreId?: number | null;
   nearestCentreId?: number | null;
@@ -183,7 +183,7 @@ export function LeafletMandiMap({
           <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
             <div>
               <span style="color: #64748B; display: block; font-size: 9px; text-transform: uppercase;">Distance</span>
-              <strong style="color: #0B2545; font-size: 12px;">${distance.toFixed(1)} km away</strong>
+              <strong style="color: #0B2545; font-size: 12px;">${distance != null ? `${distance.toFixed(1)} km away` : "Select location"}</strong>
             </div>
             <div>
               <span style="color: #64748B; display: block; font-size: 9px; text-transform: uppercase;">Estimated Wait</span>

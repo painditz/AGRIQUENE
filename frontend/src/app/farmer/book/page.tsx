@@ -4,8 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FarmerLayout } from "@/components/layout/FarmerLayout";
-import { api, CentreItem, SlotItem, TokenItem } from "@/lib/api";
-import { CROPS_MASTER } from "@/lib/constants";
+import { api, CentreItem, SlotItem, TokenItem, CropItem } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useLanguage } from "@/context/LanguageContext";
 import { useToast } from "@/context/ToastContext";
@@ -23,9 +22,9 @@ function BookSlotContent() {
   const preselectedCentre = searchParams.get("centre");
 
   const [centres, setCentres] = useState<CentreItem[]>([]);
-  const [selectedCentreId, setSelectedCentreId] = useState<number>(preselectedCentre ? parseInt(preselectedCentre) : 1);
-  const [crops] = useState(CROPS_MASTER);
-  const [selectedCrop, setSelectedCrop] = useState("Wheat (Sharbati/Kalyansona)");
+  const [selectedCentreId, setSelectedCentreId] = useState<number | null>(preselectedCentre ? parseInt(preselectedCentre) : null);
+  const [crops, setCrops] = useState<CropItem[]>([]);
+  const [selectedCrop, setSelectedCrop] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(45.0);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [slots, setSlots] = useState<SlotItem[]>([]);
@@ -36,16 +35,30 @@ function BookSlotContent() {
   const [error, setError] = useState<string | null>(null);
   const [generatedToken, setGeneratedToken] = useState<TokenItem | null>(null);
 
-  // Load Centres
+  // Load Centres & Crops from backend database
   useEffect(() => {
-    async function fetchCentres() {
+    async function fetchCentresAndCrops() {
       try {
-        const data = await api.getCentres();
-        setCentres(data);
-      } catch {}
+        const [centresData, cropsData] = await Promise.all([
+          api.getCentres(),
+          api.getCrops(),
+        ]);
+        setCentres(centresData);
+        if (preselectedCentre) {
+          setSelectedCentreId(parseInt(preselectedCentre));
+        } else if (centresData.length > 0) {
+          setSelectedCentreId((prev) => prev ?? centresData[0].id);
+        }
+        setCrops(cropsData);
+        if (cropsData.length > 0) {
+          setSelectedCrop((prev) => prev || cropsData[0].name);
+        }
+      } catch (err) {
+        console.error("Failed to load initial data", err);
+      }
     }
-    fetchCentres();
-  }, []);
+    fetchCentresAndCrops();
+  }, [preselectedCentre]);
 
   // Load Slots when centre or date changes
   useEffect(() => {
@@ -66,8 +79,8 @@ function BookSlotContent() {
   }, [selectedCentreId, selectedDate]);
 
   const handleConfirmBooking = async () => {
-    if (!selectedSlotId) {
-      setError("Please select a time slot.");
+    if (!selectedCentreId || !selectedSlotId) {
+      setError("Please select a mandi and a time slot.");
       return;
     }
     setLoading(true);
@@ -195,7 +208,7 @@ function BookSlotContent() {
                 >
                   {crops.map((crp) => (
                     <option key={crp.name} value={crp.name}>
-                      {crp.name} — MSP ₹{crp.msp} / Qtl ({crp.season})
+                      {crp.name} — MSP ₹{crp.msp_per_quintal} / Qtl ({crp.season})
                     </option>
                   ))}
                 </select>

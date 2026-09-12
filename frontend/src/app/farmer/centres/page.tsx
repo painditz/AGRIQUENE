@@ -67,7 +67,7 @@ export default function FarmerCentresPage() {
   // Sorted by distance
   const sortedCentres = useMemo(() => {
     const list = [...centresWithDistance];
-    list.sort((a, b) => a.calculated_distance_km - b.calculated_distance_km);
+    list.sort((a, b) => (a.calculated_distance_km ?? 9999) - (b.calculated_distance_km ?? 9999));
     return list;
   }, [centresWithDistance]);
 
@@ -79,7 +79,7 @@ export default function FarmerCentresPage() {
     if (sortedCentres.length === 0) return null;
     // Score based on 60% distance + 40% waiting time
     const scored = [...sortedCentres].map((c) => {
-      const distScore = c.calculated_distance_km * 2; // ~2 mins per km travel
+      const distScore = (c.calculated_distance_km ?? 10) * 2; // ~2 mins per km travel
       const waitScore = c.estimated_wait_min;
       const totalScore = distScore + waitScore;
       return { ...c, totalScore };
@@ -176,7 +176,7 @@ export default function FarmerCentresPage() {
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500 block">Distance</span>
                   <p className="text-lg font-black text-[#0B2545] font-mono mt-0.5">
-                    {nearestCentre.calculated_distance_km.toFixed(1)} km
+                    {nearestCentre.calculated_distance_km != null ? `${nearestCentre.calculated_distance_km.toFixed(1)} km` : "Select Location"}
                   </p>
                   <span className="text-[10px] text-slate-500">away</span>
                 </div>
@@ -243,7 +243,7 @@ export default function FarmerCentresPage() {
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500 block">Distance</span>
                   <p className="text-lg font-black text-[#0B2545] font-mono mt-0.5">
-                    {recommendedCentre.calculated_distance_km.toFixed(1)} km
+                    {recommendedCentre.calculated_distance_km != null ? `${recommendedCentre.calculated_distance_km.toFixed(1)} km` : "Select Location"}
                   </p>
                   <span className="text-[10px] text-slate-500">away</span>
                 </div>
@@ -333,7 +333,7 @@ export default function FarmerCentresPage() {
                         </div>
                         <p className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
                           <MapPin className="w-3.5 h-3.5 text-[#B91C1C] flex-shrink-0" />
-                          <span>{c.district}, {c.state} (~{c.calculated_distance_km.toFixed(1)} km away)</span>
+                          <span>{c.district}, {c.state} {c.calculated_distance_km != null ? `(~${c.calculated_distance_km.toFixed(1)} km away)` : ""}</span>
                         </p>
                       </div>
                       <StatusBadge status={c.status} />

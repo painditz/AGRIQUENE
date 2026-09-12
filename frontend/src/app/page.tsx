@@ -8,7 +8,7 @@ import {
   ArrowRight, ShieldCheck, CheckCircle2, Clock, MapPin,
   TrendingUp, Phone, MessageSquare, AlertCircle, Sparkles
 } from "lucide-react";
-import { APP_CONFIG, DEMO_PRESETS } from "@/lib/constants";
+import { APP_CONFIG } from "@/lib/constants";
 
 export default function HomePage() {
   const { t } = useLanguage();
@@ -62,7 +62,7 @@ export default function HomePage() {
     { num: "01", name: t("stepRegister"), desc: "Verify mobile with OTP" },
     { num: "02", name: t("stepCentre"), desc: "Compare nearby mandis" },
     { num: "03", name: t("stepBook"), desc: "Pick recommended slot" },
-    { num: "04", name: t("stepToken"), desc: "Receive token (#128)" },
+    { num: "04", name: t("stepToken"), desc: "Receive digital token" },
     { num: "05", name: t("stepTrack"), desc: "Monitor live queue & ETA" },
     { num: "06", name: t("stepProcure"), desc: "Weighing & quality check" },
     { num: "07", name: t("stepPayment"), desc: "DBT payment credited" },

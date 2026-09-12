@@ -38,20 +38,45 @@ def get_analytics_overview(db: Session = Depends(get_db)):
         {"day": "Today", "farmers_served": 176, "procurement_quintals": 5940, "dbt_disbursed_lakhs": 135.1}
     ]
 
-    # 3. Procurement Volume by Crop
-    crop_distribution = [
-        {"crop": "Wheat", "volume_quintals": 28400, "percentage": 58.5, "color": "#0B2545"},
-        {"crop": "Mustard", "volume_quintals": 11200, "percentage": 23.1, "color": "#EA580C"},
-        {"crop": "Paddy (Rice)", "volume_quintals": 6400, "percentage": 13.2, "color": "#15803D"},
-        {"crop": "Maize", "volume_quintals": 2500, "percentage": 5.2, "color": "#B91C1C"}
-    ]
+    # 3. Procurement Volume by Crop (calculated from actual bookings & records)
+    from sqlalchemy import func
+    crop_vols = (
+        db.query(Booking.crop_type, func.sum(Booking.estimated_quantity_quintals))
+        .group_by(Booking.crop_type)
+        .all()
+    )
+    total_crop_vol = sum(v or 0.0 for _, v in crop_vols)
+    palette = ["#0B2545", "#EA580C", "#15803D", "#B91C1C", "#6366F1", "#D97706"]
+    
+    crop_distribution = []
+    if total_crop_vol > 0:
+        for idx, (crop_name, vol) in enumerate(crop_vols):
+            volume = round(vol or 0.0, 1)
+            pct = round((volume / total_crop_vol) * 100, 1)
+            crop_distribution.append({
+                "crop": crop_name,
+                "volume_quintals": volume,
+                "percentage": pct,
+                "color": palette[idx % len(palette)]
+            })
+    else:
+        # Fallback to active crops from DB with 0 volume if no bookings exist yet
+        all_crops = db.query(Crop).filter(Crop.is_active == True).all()
+        for idx, c in enumerate(all_crops):
+            crop_distribution.append({
+                "crop": c.name,
+                "volume_quintals": 0.0,
+                "percentage": round(100.0 / max(1, len(all_crops)), 1),
+                "color": palette[idx % len(palette)]
+            })
 
-    # 4. Mandi Efficiency Comparison Table
+    # 4. Mandi Efficiency Comparison Table (Live Data from DB)
     centres = db.query(ProcurementCentre).all()
     centre_comparison = []
     for c in centres:
-        served = 120 + (c.id * 18)
-        waiting = db.query(Token).filter(Token.centre_id == c.id, Token.status == TokenStatus.WAITING).count()
+        served = db.query(Token).filter(Token.centre_id == c.id, Token.status == TokenStatus.COMPLETED).count()
+        waiting = db.query(Token).filter(Token.centre_id == c.id, Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED])).count()
+        eff = round(min(100.0, max(60.0, 100.0 - (waiting * 2.0))), 1)
         centre_comparison.append({
             "id": c.id,
             "centre_name": c.name,
@@ -64,17 +89,29 @@ def get_analytics_overview(db: Session = Depends(get_db)):
             "avg_wait_min": int(round((waiting * c.avg_processing_time_min) / max(1, c.active_counters))),
             "avg_processing_min": c.avg_processing_time_min,
             "workload_pct": c.workload_pct,
-            "efficiency_score": "94.8%" if c.workload_pct < 80 else "87.4%"
+            "efficiency_score": f"{eff}%"
         })
 
-    # 5. Payment Completion Breakdown
+    # 5. Payment Completion Breakdown (Live Database Aggregation)
+    completed_pays = db.query(Payment).filter(Payment.status == PaymentStatus.COMPLETED).all()
+    proc_pays = db.query(Payment).filter(Payment.status.in_([PaymentStatus.PROCESSING, PaymentStatus.PENDING])).all()
+    fail_pays = db.query(Payment).filter(Payment.status == PaymentStatus.FAILED).all()
+
+    c_cnt = len(completed_pays)
+    c_amt = sum(p.amount for p in completed_pays)
+    p_cnt = len(proc_pays)
+    p_amt = sum(p.amount for p in proc_pays)
+    f_cnt = len(fail_pays)
+    total_pays = c_cnt + p_cnt + f_cnt
+    success_rate = round((c_cnt / max(1, total_pays)) * 100, 1) if total_pays > 0 else 100.0
+
     payment_stats = {
-        "completed_count": 942,
-        "completed_amount_inr": 21450000.0,
-        "processing_count": 38,
-        "processing_amount_inr": 864000.0,
-        "failed_count": 2,
-        "success_rate_pct": 99.6
+        "completed_count": c_cnt,
+        "completed_amount_inr": c_amt,
+        "processing_count": p_cnt,
+        "processing_amount_inr": p_amt,
+        "failed_count": f_cnt,
+        "success_rate_pct": success_rate
     }
 
     return {

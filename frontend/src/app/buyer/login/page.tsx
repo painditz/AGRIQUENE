@@ -6,14 +6,13 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Building2, Lock, UserCheck, RefreshCw, ArrowRight, Shield } from "lucide-react";
-import { DEMO_PRESETS } from "@/lib/constants";
 
 export default function BuyerLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState(DEMO_PRESETS.buyer.empId);
-  const [password, setPassword] = useState(DEMO_PRESETS.buyer.password);
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +25,7 @@ export default function BuyerLoginPage() {
       login(authData);
       router.push("/buyer/queue");
     } catch (err: any) {
-      setError(err.message || "Invalid Buyer credentials. Try BUYER-GZB-01 / buyer123.");
+      setError(err.message || "Invalid Buyer credentials. Please verify your Employee ID and password.");
     } finally {
       setLoading(false);
     }
@@ -81,21 +80,6 @@ export default function BuyerLoginPage() {
               placeholder="••••••••"
               className="w-full p-2.5 border border-slate-300 rounded text-xs outline-none focus:border-[#0B2545]"
             />
-          </div>
-
-          {/* Demo Presets Helper */}
-          <div className="bg-blue-50 border border-blue-200 p-2.5 rounded text-[11px] text-blue-900 flex items-center justify-between">
-            <span>Demo: <strong>BUYER-GZB-01</strong> / <strong>buyer123</strong></span>
-            <button
-              type="button"
-              onClick={() => {
-                setIdentifier(DEMO_PRESETS.buyer.empId);
-                setPassword(DEMO_PRESETS.buyer.password);
-              }}
-              className="text-[#0B2545] font-bold underline text-[10px]"
-            >
-              Fill Demo
-            </button>
           </div>
 
           <button

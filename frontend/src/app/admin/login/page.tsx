@@ -6,14 +6,13 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { ShieldCheck, Lock, UserCheck, RefreshCw, ArrowRight } from "lucide-react";
-import { DEMO_PRESETS } from "@/lib/constants";
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState(DEMO_PRESETS.admin.identifier);
-  const [password, setPassword] = useState(DEMO_PRESETS.admin.password);
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +25,7 @@ export default function AdminLoginPage() {
       login(authData);
       router.push("/admin/dashboard");
     } catch (err: any) {
-      setError(err.message || "Invalid Admin credentials. Try admin@agriquene.gov.in / admin123.");
+      setError(err.message || "Invalid Admin credentials. Please check your official email and password.");
     } finally {
       setLoading(false);
     }
@@ -79,21 +78,6 @@ export default function AdminLoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full p-2.5 border border-slate-300 rounded text-xs outline-none focus:border-[#0B2545]"
             />
-          </div>
-
-          {/* Demo preset button */}
-          <div className="bg-blue-50 border border-blue-200 p-2.5 rounded text-[11px] text-blue-900 flex items-center justify-between">
-            <span>Demo Admin: <strong>admin@agriquene.gov.in</strong></span>
-            <button
-              type="button"
-              onClick={() => {
-                setIdentifier(DEMO_PRESETS.admin.identifier);
-                setPassword(DEMO_PRESETS.admin.password);
-              }}
-              className="text-[#0B2545] font-bold underline text-[10px]"
-            >
-              Fill Demo
-            </button>
           </div>
 
           <button

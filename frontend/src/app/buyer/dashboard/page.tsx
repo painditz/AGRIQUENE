@@ -5,18 +5,20 @@ import Link from "next/link";
 import { BuyerLayout } from "@/components/layout/BuyerLayout";
 import { StatsCard } from "@/components/ui/StatsCard";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import {
   Calendar, Users, CheckCircle2, Sliders, Clock,
   Activity, ArrowRight, Play, RefreshCw
 } from "lucide-react";
 
 export default function BuyerDashboardPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     try {
-      const data = await api.getBuyerDashboard(1);
+      const data = await api.getBuyerDashboard(user?.centreId);
       setStats(data);
     } catch {} finally {
       setLoading(false);
@@ -25,15 +27,15 @@ export default function BuyerDashboardPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.centreId]);
 
   const today = stats?.today_stats || {
-    total_bookings: 128,
-    waiting_farmers: 34,
-    completed_procurements: 76,
-    active_counters: 4,
-    avg_processing_time_min: 8.0,
-    workload_pct: 75.0,
+    total_bookings: 0,
+    waiting_farmers: 0,
+    completed_procurements: 0,
+    active_counters: 0,
+    avg_processing_time_min: 0,
+    workload_pct: 0,
   };
 
   return (
@@ -46,10 +48,10 @@ export default function BuyerDashboardPage() {
               APMC OPERATIONS DESK
             </span>
             <h1 className="text-2xl font-extrabold text-[#0B2545] font-serif mt-0.5">
-              {stats?.centre_name || "Agri Procurement Centre – Ghaziabad Mandi"}
+              {stats?.centre_name || (loading ? "Loading Mandi Desk..." : "Mandi Operations Desk")}
             </h1>
             <p className="text-xs text-slate-500">
-              Mandi Code: <span className="font-mono font-bold text-slate-800">{stats?.centre_code || "APC-UP-GZB-01"}</span> · Counter #1
+              Mandi Code: <span className="font-mono font-bold text-slate-800">{stats?.centre_code || "—"}</span> · Counter #1
             </p>
           </div>
 

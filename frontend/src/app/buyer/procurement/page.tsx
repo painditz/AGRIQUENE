@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { BuyerLayout } from "@/components/layout/BuyerLayout";
 import { api, CentreQueueStatus, ProcurementItem } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { formatINR, formatWeight } from "@/lib/utils";
 import {
   Scale, FileText, CheckCircle2, RefreshCw,
@@ -10,36 +11,50 @@ import {
 } from "lucide-react";
 
 export default function BuyerProcurementPage() {
+  const { user } = useAuth();
   const [queueStatus, setQueueStatus] = useState<CentreQueueStatus | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
 
   // Form Fields
-  const [grossWeight, setGrossWeight] = useState<number>(42.8);
-  const [tareWeight, setTareWeight] = useState<number>(2.8);
+  const [grossWeight, setGrossWeight] = useState<number>(40.0);
+  const [tareWeight, setTareWeight] = useState<number>(2.0);
   const [moisturePct, setMoisturePct] = useState<number>(11.5);
   const [qualityGrade, setQualityGrade] = useState("Grade A (FAQ)");
   const [baseMSP, setBaseMSP] = useState<number>(2275.0);
-  const [bonusAmount, setBonusAmount] = useState<number>(2000.0);
-  const [remarks, setRemarks] = useState("Moisture within standard limits. High quality grain.");
+  const [bonusAmount, setBonusAmount] = useState<number>(0.0);
+  const [remarks, setRemarks] = useState("Standard certified procurement.");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completedRecord, setCompletedRecord] = useState<ProcurementItem | null>(null);
 
+  const centreId = user?.centreId || 1;
+
   useEffect(() => {
     async function load() {
       try {
-        const q = await api.getCentreQueue(1);
+        const [q, crops] = await Promise.all([
+          api.getCentreQueue(centreId),
+          api.getCrops(),
+        ]);
         setQueueStatus(q);
-        if (q.current_serving_id) {
-          setSelectedTokenId(q.current_serving_id);
-        } else if (q.queue.length > 0) {
-          setSelectedTokenId(q.queue[0].token_id);
+        const activeId = q.current_serving_id || (q.queue.length > 0 ? q.queue[0].token_id : null);
+        if (activeId) {
+          setSelectedTokenId(activeId);
+          const found = q.queue.find(item => item.token_id === activeId);
+          if (found) {
+            setGrossWeight(found.quantity_quintals + 2.0);
+            const matchedCrop = crops.find(c => c.name.toLowerCase().includes(found.crop.toLowerCase()));
+            if (matchedCrop) {
+              setBaseMSP(matchedCrop.msp_per_quintal);
+              setBonusAmount(matchedCrop.grade_a_premium);
+            }
+          }
         }
       } catch {}
     }
     load();
-  }, []);
+  }, [centreId]);
 
   const netWeight = Math.max(0.1, grossWeight - tareWeight);
   const totalAmount = Math.round((netWeight * baseMSP) + bonusAmount);

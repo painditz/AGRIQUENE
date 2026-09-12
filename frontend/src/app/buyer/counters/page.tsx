@@ -3,17 +3,21 @@
 import React, { useState, useEffect } from "react";
 import { BuyerLayout } from "@/components/layout/BuyerLayout";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { Sliders, CheckCircle2, RefreshCw, AlertCircle } from "lucide-react";
 
 export default function BuyerCountersPage() {
+  const { user } = useAuth();
   const [centreData, setCentreData] = useState<any>(null);
   const [activeCounters, setActiveCounters] = useState<number>(4);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
+  const centreId = user?.centreId || 1;
+
   const loadData = async () => {
     try {
-      const data = await api.getBuyerDashboard(1);
+      const data = await api.getBuyerDashboard(centreId);
       setCentreData(data);
       setActiveCounters(data.active_counters);
     } catch {}
@@ -21,13 +25,13 @@ export default function BuyerCountersPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [centreId]);
 
   const handleUpdateCounters = async () => {
     setLoading(true);
     setStatusMsg(null);
     try {
-      const res = await api.updateActiveCounters(1, activeCounters);
+      const res = await api.updateActiveCounters(centreId, activeCounters);
       setStatusMsg(res.message);
       await loadData();
     } catch (err: any) {

@@ -12,7 +12,7 @@ from .services.mock_data import seed_initial_data
 from .api import (
     auth, farmers, buyers, admin, centres,
     bookings, queue, eta, procurement, payments,
-    notifications, analytics
+    notifications, analytics, crops
 )
 
 # Configure logging
@@ -74,6 +74,7 @@ app.include_router(procurement.router, prefix=api_prefix)
 app.include_router(payments.router, prefix=api_prefix)
 app.include_router(notifications.router, prefix=api_prefix)
 app.include_router(analytics.router, prefix=api_prefix)
+app.include_router(crops.router, prefix=api_prefix)
 
 # -------------------------------------------------------------
 # Real-Time WebSocket Endpoint

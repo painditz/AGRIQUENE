@@ -25,74 +25,10 @@ export default function AdminAnalyticsPage() {
     load();
   }, []);
 
-  const hourlyRush = data?.hourly_rush || [
-    { hour: "08:00 AM", avg_wait_min: 14, arrivals: 18, processed: 16 },
-    { hour: "09:00 AM", avg_wait_min: 26, arrivals: 32, processed: 25 },
-    { hour: "10:00 AM", avg_wait_min: 45, arrivals: 58, processed: 38 },
-    { hour: "11:00 AM", avg_wait_min: 48, arrivals: 64, processed: 42 },
-    { hour: "12:00 PM", avg_wait_min: 39, arrivals: 46, processed: 40 },
-    { hour: "01:00 PM", avg_wait_min: 28, arrivals: 30, processed: 35 },
-    { hour: "02:00 PM", avg_wait_min: 35, arrivals: 42, processed: 36 },
-    { hour: "03:00 PM", avg_wait_min: 22, arrivals: 25, processed: 30 },
-    { hour: "04:00 PM", avg_wait_min: 15, arrivals: 14, processed: 22 },
-    { hour: "05:00 PM", avg_wait_min: 8, arrivals: 6, processed: 14 },
-  ];
-
-  const dailyTrend = data?.daily_trend || [
-    { day: "Mon", farmers_served: 142, procurement_quintals: 4820 },
-    { day: "Tue", farmers_served: 168, procurement_quintals: 5640 },
-    { day: "Wed", farmers_served: 185, procurement_quintals: 6210 },
-    { day: "Thu", farmers_served: 194, procurement_quintals: 6590 },
-    { day: "Fri", farmers_served: 210, procurement_quintals: 7180 },
-    { day: "Sat", farmers_served: 225, procurement_quintals: 7820 },
-    { day: "Today", farmers_served: 176, procurement_quintals: 5940 },
-  ];
-
-  const cropDistribution = data?.crop_distribution || [
-    { crop: "Wheat", volume_quintals: 28400, percentage: 58.5, color: "#0B2545" },
-    { crop: "Mustard", volume_quintals: 11200, percentage: 23.1, color: "#EA580C" },
-    { crop: "Paddy (Rice)", volume_quintals: 6400, percentage: 13.2, color: "#15803D" },
-    { crop: "Maize", volume_quintals: 2500, percentage: 5.2, color: "#B91C1C" },
-  ];
-
-  const centreComparison = data?.centre_comparison || [
-    {
-      id: 1,
-      centre_name: "Agri Procurement Centre – Ghaziabad Mandi",
-      district: "Ghaziabad",
-      state: "Uttar Pradesh",
-      active_counters: 4,
-      farmers_served: 138,
-      current_queue: 14,
-      avg_wait_min: 33,
-      avg_processing_min: 8.0,
-      efficiency_score: "94.8%",
-    },
-    {
-      id: 2,
-      centre_name: "Karnal Central Grain APMC Mandi",
-      district: "Karnal",
-      state: "Haryana",
-      active_counters: 5,
-      farmers_served: 156,
-      current_queue: 8,
-      avg_wait_min: 20,
-      avg_processing_min: 7.5,
-      efficiency_score: "96.2%",
-    },
-    {
-      id: 3,
-      centre_name: "Jaipur Krishi Upaj Mandi Samiti",
-      district: "Jaipur",
-      state: "Rajasthan",
-      active_counters: 3,
-      farmers_served: 174,
-      current_queue: 22,
-      avg_wait_min: 55,
-      avg_processing_min: 9.0,
-      efficiency_score: "87.4%",
-    },
-  ];
+  const hourlyRush = data?.hourly_rush || [];
+  const dailyTrend = data?.daily_trend || [];
+  const cropDistribution = data?.crop_distribution || [];
+  const centreComparison = data?.centre_comparison || [];
 
   return (
     <AdminLayout>

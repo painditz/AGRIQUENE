@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { api, CentreItem } from "@/lib/api";
-import { CROPS_MASTER } from "@/lib/constants";
+import { api, CentreItem, CropItem } from "@/lib/api";
 import {
   User, MapPin, Wheat, Building2, CheckCircle2,
   ArrowRight, ArrowLeft, RefreshCw, AlertCircle,
@@ -35,14 +34,31 @@ export default function FarmerRegisterPage() {
   const [pinCode, setPinCode] = useState("");
 
   // Form State - Step 2: Crop & Land
-  const [preferredCrop, setPreferredCrop] = useState("Wheat (Sharbati/Kalyansona)");
+  const [crops, setCrops] = useState<CropItem[]>([]);
+  const [preferredCrop, setPreferredCrop] = useState("");
   const [landAcres, setLandAcres] = useState(2.5);
 
   // Form State - Step 3: Mandi Selection
   const [centres, setCentres] = useState<CentreItem[]>([]);
   const [centresLoading, setCentresLoading] = useState(false);
   const [centresError, setCentresError] = useState<string | null>(null);
-  const [preferredCentreId, setPreferredCentreId] = useState<number>(1);
+  const [preferredCentreId, setPreferredCentreId] = useState<number | null>(null);
+
+  // Load Crops from backend database
+  useEffect(() => {
+    async function loadCrops() {
+      try {
+        const data = await api.getCrops();
+        setCrops(data);
+        if (data.length > 0 && !preferredCrop) {
+          setPreferredCrop(data[0].name);
+        }
+      } catch (e) {
+        console.error("Failed to load crops", e);
+      }
+    }
+    loadCrops();
+  }, []);
 
   // Fetch Centres from backend database
   const loadCentres = async () => {
@@ -422,9 +438,9 @@ export default function FarmerRegisterPage() {
                   onChange={(e) => setPreferredCrop(e.target.value)}
                   className="w-full p-2.5 border border-slate-300 rounded text-xs bg-white outline-none focus:border-[#0B2545] font-semibold"
                 >
-                  {CROPS_MASTER.map((crop) => (
+                  {crops.map((crop) => (
                     <option key={crop.name} value={crop.name}>
-                      {crop.name} — MSP ₹{crop.msp} / Quintal ({crop.season})
+                      {crop.name} — MSP ₹{crop.msp_per_quintal} / Quintal ({crop.season})
                     </option>
                   ))}
                 </select>

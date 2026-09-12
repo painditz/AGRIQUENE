@@ -364,7 +364,7 @@ export default function CentresPage() {
               ...c,
               calculated_distance_km: farmerLocation
                 ? calculateHaversineDistance(farmerLocation.lat, farmerLocation.lng, c.latitude, c.longitude)
-                : c.distance_km,
+                : (c.distance_km ?? null),
             }))}
             farmerLocation={farmerLocation}
             height="460px"

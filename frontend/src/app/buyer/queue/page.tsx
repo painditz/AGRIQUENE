@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { BuyerLayout } from "@/components/layout/BuyerLayout";
-import { api, CentreQueueStatus, QueueItem } from "@/lib/api";
+import { api, CentreQueueStatus, QueueItem, CentreItem } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useAuth } from "@/context/AuthContext";
 import { useQueueSocket } from "@/context/QueueSocketContext";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -13,29 +14,53 @@ import {
 import Link from "next/link";
 
 export default function BuyerQueuePage() {
-  const { lastEvent, playAlertSound } = useQueueSocket();
+  const { user } = useAuth();
+  const { lastEvent, playAlertSound, setActiveCentreId } = useQueueSocket();
   const { showToast } = useToast();
 
+  const [centres, setCentres] = useState<CentreItem[]>([]);
+  const [selectedCentreId, setSelectedCentreId] = useState<number | null>(null);
   const [queueStatus, setQueueStatus] = useState<CentreQueueStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
+  // Fetch available centres and initialize centre ID
+  useEffect(() => {
+    async function loadCentres() {
+      try {
+        const data = await api.getCentres();
+        setCentres(data);
+        if (!selectedCentreId) {
+          const initId = user?.centreId || (data.length > 0 ? data[0].id : 1);
+          setSelectedCentreId(initId);
+          setActiveCentreId(initId);
+        }
+      } catch {}
+    }
+    loadCentres();
+  }, [user?.centreId, selectedCentreId, setActiveCentreId]);
+
+  const effectiveCentreId = selectedCentreId || user?.centreId || 1;
+
   const loadQueue = useCallback(async () => {
     try {
-      const data = await api.getCentreQueue(1);
+      const data = await api.getCentreQueue(effectiveCentreId);
       setQueueStatus(data);
     } catch {
       showToast("Unable to load latest queue data", "error");
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [effectiveCentreId, showToast]);
 
   useEffect(() => {
-    loadQueue();
-  }, [loadQueue]);
+    if (effectiveCentreId) {
+      setActiveCentreId(effectiveCentreId);
+      loadQueue();
+    }
+  }, [effectiveCentreId, loadQueue, setActiveCentreId]);
 
   useEffect(() => {
     if (lastEvent) {
@@ -49,7 +74,7 @@ export default function BuyerQueuePage() {
     setActionLoadingId(tokenId || -1);
     setActionMessage(null);
     try {
-      const res = await api.callNextToken({ token_id: tokenId, counter_number: 1 }, 1);
+      const res = await api.callNextToken({ token_id: tokenId, counter_number: 1 }, effectiveCentreId);
       const msg = `Token ${res.called_token} called to Counter #1! SMS alert sent.`;
       setActionMessage(`✓ ${msg}`);
       showToast(msg, "info", "Token Called");
@@ -133,11 +158,26 @@ export default function BuyerQueuePage() {
               ACTIVE WEIGHBRIDGE QUEUE CONTROLLER
             </span>
             <h1 className="text-2xl font-black text-[#0B2545] font-serif mt-0.5">
-              Mandi Queue Management Deck
+              {queueStatus?.centre_name || "Mandi Queue Management Deck"}
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Counter #1 · Calling tokens instantly updates connected farmers and calculates XGBoost ETAs.
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-slate-500">Active Mandi:</span>
+              {centres.length > 1 ? (
+                <select
+                  value={effectiveCentreId}
+                  onChange={(e) => setSelectedCentreId(parseInt(e.target.value))}
+                  className="text-xs font-bold text-[#0B2545] bg-slate-50 border border-slate-300 rounded p-1"
+                >
+                  {centres.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.district})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-xs font-bold text-slate-800">{queueStatus?.centre_name || "Loading..."}</span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

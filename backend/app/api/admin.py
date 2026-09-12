@@ -35,8 +35,8 @@ def get_admin_dashboard(db: Session = Depends(get_db)):
     completed_proc = db.query(Token).filter(Token.status == TokenStatus.COMPLETED).count()
     pending_payments = db.query(Payment).filter(Payment.status != "COMPLETED").count()
     
-    # Total procurement value
-    total_val = sum(p.total_amount for p in db.query(ProcurementRecord).all()) or 148500.0
+    # Total procurement value from real database records
+    total_val = sum(p.total_amount for p in db.query(ProcurementRecord).all()) or 0.0
 
     return {
         "overview": {

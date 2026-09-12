@@ -8,7 +8,7 @@ from ..models.models import (
     Booking, ProcurementRecord, User, UserRole
 )
 from ..core.websocket import manager
-from ..core.security import require_role
+from ..core.security import require_role, get_current_user
 from ..services.audit_service import audit_service
 
 router = APIRouter(
@@ -18,7 +18,18 @@ router = APIRouter(
 )
 
 @router.get("/dashboard")
-def get_buyer_dashboard(centre_id: Optional[int] = 1, db: Session = Depends(get_db)):
+def get_buyer_dashboard(
+    centre_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if centre_id is None:
+        if current_user.buyer_profile and current_user.buyer_profile.centre_id:
+            centre_id = current_user.buyer_profile.centre_id
+        else:
+            first_c = db.query(ProcurementCentre).first()
+            centre_id = first_c.id if first_c else 1
+
     centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == centre_id).first()
     if not centre:
         raise HTTPException(status_code=404, detail="Centre not found")

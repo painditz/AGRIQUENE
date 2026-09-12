@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { api, AuthResponse } from "@/lib/api";
-import { DEMO_PRESETS } from "@/lib/constants";
 
 export interface UserInfo {
   id: number;
@@ -22,7 +21,6 @@ interface AuthContextType {
   login: (authData: AuthResponse) => void;
   updateUser: (updated: Partial<UserInfo>) => void;
   logout: () => void;
-  switchRoleQuick: (role: "FARMER" | "BUYER" | "ADMIN") => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,76 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return user?.role === requiredRole;
   };
 
-  const switchRoleQuick = async (role: "FARMER" | "BUYER" | "ADMIN") => {
-    try {
-      let authData: AuthResponse | null = null;
-      if (role === "FARMER") {
-        authData = await api.unifiedLogin({
-          identifier: DEMO_PRESETS.farmer.mobile,
-          password: "farmer123",
-        });
-      } else if (role === "BUYER") {
-        authData = await api.unifiedLogin({
-          identifier: DEMO_PRESETS.buyer.empId,
-          password: "buyer123",
-        });
-      } else if (role === "ADMIN") {
-        authData = await api.unifiedLogin({
-          identifier: DEMO_PRESETS.admin.identifier,
-          password: "admin123",
-        });
-      }
-      if (authData) {
-        login(authData);
-        return;
-      }
-    } catch (e) {
-      console.warn("Backend dynamic login failed, using fallback dev credentials", e);
-    }
-
-    // Fallback: set dev token if backend is unreachable
-    const devToken = role === "ADMIN" ? "dev-admin-token" : role === "BUYER" ? "dev-buyer-token" : "dev-farmer-token";
-    if (role === "FARMER") {
-      const u: UserInfo = {
-        id: 1,
-        fullName: DEMO_PRESETS.farmer.name,
-        mobileNumber: DEMO_PRESETS.farmer.mobile,
-        role: "FARMER",
-        isRegistered: true,
-      };
-      setUser(u);
-      setToken(devToken);
-      localStorage.setItem("agriquene_token", devToken);
-      localStorage.setItem("agriquene_user", JSON.stringify(u));
-    } else if (role === "BUYER") {
-      const u: UserInfo = {
-        id: 2,
-        fullName: DEMO_PRESETS.buyer.name,
-        mobileNumber: DEMO_PRESETS.buyer.identifier,
-        role: "BUYER",
-        isRegistered: true,
-        centreId: 1,
-        centreName: "Agri Procurement Centre – Ghaziabad Mandi",
-      };
-      setUser(u);
-      setToken(devToken);
-      localStorage.setItem("agriquene_token", devToken);
-      localStorage.setItem("agriquene_user", JSON.stringify(u));
-    } else if (role === "ADMIN") {
-      const u: UserInfo = {
-        id: 3,
-        fullName: DEMO_PRESETS.admin.name,
-        mobileNumber: "9800000001",
-        role: "ADMIN",
-        isRegistered: true,
-      };
-      setUser(u);
-      setToken(devToken);
-      localStorage.setItem("agriquene_token", devToken);
-      localStorage.setItem("agriquene_user", JSON.stringify(u));
-    }
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -163,7 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         updateUser,
         logout,
-        switchRoleQuick,
       }}
     >
       {children}

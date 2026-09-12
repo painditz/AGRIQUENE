@@ -40,7 +40,19 @@ export interface CentreItem {
   current_waiting_count: number;
   estimated_wait_min: number;
   available_slots_today: number;
-  distance_km: number;
+  distance_km?: number | null;
+}
+
+export interface CropItem {
+  id: number;
+  name: string;
+  hindi_name?: string;
+  msp_per_quintal: number;
+  standard_moisture_pct: number;
+  max_moisture_pct: number;
+  grade_a_premium: number;
+  season: string;
+  is_active: boolean;
 }
 
 export interface SlotItem {
@@ -343,12 +355,21 @@ class ApiClient {
     });
   }
 
+  // Crops Master
+  async getCrops(): Promise<CropItem[]> {
+    return this.request<CropItem[]>("/crops");
+  }
+
+  async getCropById(id: number): Promise<CropItem> {
+    return this.request<CropItem>(`/crops/${id}`);
+  }
+
   // Queue
   async getCentreQueue(centreId: number): Promise<CentreQueueStatus> {
     return this.request<CentreQueueStatus>(`/queue/${centreId}`);
   }
 
-  async callNextToken(data: { token_id?: number; counter_number: number }, centreId: number = 1): Promise<any> {
+  async callNextToken(data: { token_id?: number; counter_number: number }, centreId: number): Promise<any> {
     return this.request(`/queue/call-next?centre_id=${centreId}`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -377,8 +398,9 @@ class ApiClient {
   }
 
   // Buyer
-  async getBuyerDashboard(centreId: number = 1): Promise<any> {
-    return this.request(`/buyers/dashboard?centre_id=${centreId}`);
+  async getBuyerDashboard(centreId?: number): Promise<any> {
+    const query = centreId ? `?centre_id=${centreId}` : "";
+    return this.request(`/buyers/dashboard${query}`);
   }
 
   async updateActiveCounters(centre_id: number, active_counters: number): Promise<any> {

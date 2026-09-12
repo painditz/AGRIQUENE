@@ -50,7 +50,7 @@ export default function AdminDashboardPage() {
               State Agricultural Procurement Dashboard
             </h1>
             <p className="text-xs text-slate-500">
-              Real-time monitoring across 5 Mandis and APMC yards in Uttar Pradesh / Northern Region.
+              Real-time operational monitoring across {ov.active_centres} active Mandis and APMC procurement centres.
             </p>
           </div>
 
