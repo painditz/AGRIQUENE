@@ -20,6 +20,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   hasRole: (role: "FARMER" | "BUYER" | "ADMIN") => boolean;
   login: (authData: AuthResponse) => void;
+  updateUser: (updated: Partial<UserInfo>) => void;
   logout: () => void;
   switchRoleQuick: (role: "FARMER" | "BUYER" | "ADMIN") => Promise<void>;
 }
@@ -84,6 +85,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(authData.access_token);
     localStorage.setItem("agriquene_token", authData.access_token);
     localStorage.setItem("agriquene_user", JSON.stringify(userInfo));
+  };
+
+  const updateUser = (updated: Partial<UserInfo>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...updated };
+      localStorage.setItem("agriquene_user", JSON.stringify(next));
+      return next;
+    });
   };
 
   const logout = () => {
@@ -175,6 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         hasRole,
         login,
+        updateUser,
         logout,
         switchRoleQuick,
       }}

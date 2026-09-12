@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
+import random
 from ..db.session import get_db
 from ..models.models import (
     User, Farmer, Booking, Token, TokenStatus,
@@ -13,6 +15,7 @@ from ..schemas.schemas import (
 from ..core.security import get_current_user
 from ..models.models import UserRole
 from ..services.audit_service import audit_service
+from ..services.eta_service import eta_service
 
 router = APIRouter(prefix="/farmers", tags=["Farmer Services"])
 
@@ -73,7 +76,45 @@ def register_farmer_profile(
         profile = Farmer(user_id=user.id)
         db.add(profile)
         
-    profile.farmer_id_card = payload.farmer_id_card or f"PMK-IN-2026-{user.mobile_number[-4:]}"
+    # Determine unique farmer_id_card
+    raw_card = (payload.farmer_id_card or "").strip()
+    
+    # State code helper for ID generation
+    state_code = "UP"
+    if payload.state:
+        st_clean = "".join([c for c in payload.state if c.isalnum()]).upper()
+        if len(st_clean) >= 2:
+            state_code = st_clean[:2]
+            
+    mob_suffix = user.mobile_number[-4:] if user.mobile_number and len(user.mobile_number) >= 4 else f"{user.id:04d}"
+
+    # If the payload sends the seed demo default ("PMK-UP-2026-9481") and caller is not Ramesh (user_id 1),
+    # treat it as unassigned / default request so we generate a unique card for this new user
+    if raw_card == "PMK-UP-2026-9481" and user.id != 1:
+        raw_card = ""
+
+    if raw_card:
+        # User explicitly supplied a custom ID card. Ensure no other farmer is using it.
+        duplicate = db.query(Farmer).filter(
+            Farmer.farmer_id_card == raw_card,
+            Farmer.user_id != user.id
+        ).first()
+        if duplicate:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Farmer ID / PM-KISAN ID '{raw_card}' is already registered to another account. Please enter your unique PM-KISAN / KCC number."
+            )
+        candidate_card = raw_card
+    else:
+        # Generate unique candidate card
+        candidate_card = f"PMK-{state_code}-2026-{mob_suffix}"
+        # If candidate card already in use by another user, generate a unique variant
+        attempt = 1
+        while db.query(Farmer).filter(Farmer.farmer_id_card == candidate_card, Farmer.user_id != user.id).first():
+            candidate_card = f"PMK-{state_code}-2026-{user.id:02d}{mob_suffix}-{attempt}"
+            attempt += 1
+
+    profile.farmer_id_card = candidate_card
     profile.father_name = payload.father_name
     profile.address = payload.address
     profile.village = payload.village
@@ -85,7 +126,21 @@ def register_farmer_profile(
     if payload.preferred_centre_id is not None:
         profile.preferred_centre_id = payload.preferred_centre_id
     
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        # Fallback deduplication for race conditions
+        profile.farmer_id_card = f"PMK-{state_code}-2026-{user.id:04d}-{random.randint(100, 999)}"
+        try:
+            db.commit()
+        except Exception as inner_exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unable to register profile due to a database constraint: {str(inner_exc)}"
+            )
+    
     db.refresh(profile)
     db.refresh(user)
     

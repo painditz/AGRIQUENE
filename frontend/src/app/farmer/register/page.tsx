@@ -13,7 +13,7 @@ import {
 
 export default function FarmerRegisterPage() {
   const router = useRouter();
-  const { user, login } = useAuth();
+  const { user, login, updateUser } = useAuth();
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -21,17 +21,21 @@ export default function FarmerRegisterPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form State - Step 1: Personal KYC
-  const [fullName, setFullName] = useState(user?.fullName || "Ramesh Kumar Sharma");
-  const [farmerIdCard, setFarmerIdCard] = useState("PMK-UP-2026-9481");
-  const [fatherName, setFatherName] = useState("Late Shri Ram Gopal Sharma");
-  const [village, setVillage] = useState("Muradnagar");
+  const [fullName, setFullName] = useState(
+    user?.fullName && user.fullName !== "New Farmer" ? user.fullName : ""
+  );
+  const [farmerIdCard, setFarmerIdCard] = useState(
+    user?.mobileNumber === "9876543210" ? "PMK-UP-2026-9481" : ""
+  );
+  const [fatherName, setFatherName] = useState("");
+  const [village, setVillage] = useState("");
   const [district, setDistrict] = useState("Ghaziabad");
   const [state, setState] = useState("Uttar Pradesh");
-  const [pinCode, setPinCode] = useState("201206");
+  const [pinCode, setPinCode] = useState("");
 
   // Form State - Step 2: Crop & Land
   const [preferredCrop, setPreferredCrop] = useState("Wheat (Sharbati/Kalyansona)");
-  const [landAcres, setLandAcres] = useState(4.5);
+  const [landAcres, setLandAcres] = useState(2.5);
 
   // Form State - Step 3: Mandi Selection
   const [centres, setCentres] = useState<CentreItem[]>([]);
@@ -65,8 +69,39 @@ export default function FarmerRegisterPage() {
   };
 
   useEffect(() => {
-    loadCentres();
-  }, []);
+    let isMounted = true;
+    const loadProfileAndCentres = async () => {
+      try {
+        const prof = await api.getFarmerProfile();
+        if (prof && isMounted) {
+          if (prof.full_name && prof.full_name !== "New Farmer") setFullName(prof.full_name);
+          if (prof.farmer_id_card) setFarmerIdCard(prof.farmer_id_card);
+          if (prof.father_name) setFatherName(prof.father_name);
+          if (prof.village) setVillage(prof.village);
+          if (prof.district) setDistrict(prof.district);
+          if (prof.state) setState(prof.state);
+          if (prof.pin_code) setPinCode(prof.pin_code);
+          if (prof.land_acres) setLandAcres(prof.land_acres);
+          if (prof.preferred_crop) setPreferredCrop(prof.preferred_crop);
+          if (prof.preferred_centre_id) setPreferredCentreId(prof.preferred_centre_id);
+        }
+      } catch {
+        // Fallback: If fresh user with mobile, pre-populate name or leave blank
+        if (user?.fullName && user.fullName !== "New Farmer") {
+          setFullName(user.fullName);
+        }
+      }
+      if (isMounted) {
+        await loadCentres();
+      }
+    };
+
+    loadProfileAndCentres();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // When user reaches step 3, ensure centres are loaded
   useEffect(() => {
@@ -135,6 +170,15 @@ export default function FarmerRegisterPage() {
         preferred_crop: preferredCrop,
         preferred_centre_id: preferredCentreId,
       });
+
+      if (updateUser) {
+        updateUser({
+          fullName: response.full_name,
+          isRegistered: true,
+          centreId: response.preferred_centre_id,
+          centreName: response.preferred_centre_name,
+        });
+      }
 
       setSuccessMsg("Farmer registration completed successfully! Redirecting to your dashboard...");
       setTimeout(() => {
@@ -269,10 +313,11 @@ export default function FarmerRegisterPage() {
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Farmer ID / PM-KISAN Reg No.
+                    <span className="text-slate-400 font-normal lowercase ml-1">(auto-assigned if blank)</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="PMK-UP-2026-XXXX"
+                    placeholder={`e.g. PMK-UP-2026-${user?.mobileNumber ? user.mobileNumber.slice(-4) : "9481"}`}
                     value={farmerIdCard}
                     onChange={(e) => setFarmerIdCard(e.target.value)}
                     className="w-full p-2.5 border border-slate-300 rounded text-xs font-mono outline-none focus:border-[#0B2545]"
