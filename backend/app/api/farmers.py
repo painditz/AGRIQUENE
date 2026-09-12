@@ -6,7 +6,7 @@ import random
 from ..db.session import get_db
 from ..models.models import (
     User, Farmer, Booking, Token, TokenStatus,
-    ProcurementRecord, Payment, ProcurementCentre
+    ProcurementRecord, Payment, ProcurementCentre, PaymentStatus
 )
 from ..schemas.schemas import (
     FarmerRegisterRequest, FarmerProfileResponse,
@@ -130,6 +130,11 @@ def register_farmer_profile(
         db.commit()
     except IntegrityError as exc:
         db.rollback()
+        # After rollback, the profile object may be expunged. Re-merge it.
+        profile = db.merge(profile)
+        # Re-apply user name since it was rolled back
+        user = db.merge(user)
+        user.full_name = payload.full_name
         # Fallback deduplication for race conditions
         profile.farmer_id_card = f"PMK-{state_code}-2026-{user.id:04d}-{random.randint(100, 999)}"
         try:
