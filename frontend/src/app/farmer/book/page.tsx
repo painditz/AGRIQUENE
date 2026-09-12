@@ -7,15 +7,18 @@ import { FarmerLayout } from "@/components/layout/FarmerLayout";
 import { api, CentreItem, SlotItem, TokenItem } from "@/lib/api";
 import { CROPS_MASTER } from "@/lib/constants";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { ETACard } from "@/components/ui/ETACard";
+import { useLanguage } from "@/context/LanguageContext";
+import { useToast } from "@/context/ToastContext";
 import {
   CalendarPlus, Building2, Wheat, Scale, Calendar,
-  Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle
+  Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Sparkles, MapPin
 } from "lucide-react";
 
 function BookSlotContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
+  const { showToast } = useToast();
 
   const preselectedCentre = searchParams.get("centre");
 
@@ -78,8 +81,15 @@ function BookSlotContent() {
       });
       setGeneratedToken(res);
       setBookingStep(4); // Move to Success Token Screen
-    } catch (err: any) {
-      setError(err.message || "Failed to confirm booking.");
+      showToast(
+        `Token ${res.token_display} assigned successfully! Position #${res.current_position}`,
+        "success",
+        "Slot Confirmed"
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to confirm booking.";
+      setError(msg);
+      showToast(msg, "error", "Booking Error");
     } finally {
       setLoading(false);
     }
@@ -92,56 +102,59 @@ function BookSlotContent() {
     <FarmerLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="bg-white border border-slate-200 rounded p-5 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-md p-5 shadow-sm">
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#B91C1C]">
             PROCUREMENT APPOINTMENT SCHEDULER
           </span>
-          <h1 className="text-2xl font-extrabold text-[#0B2545] font-serif mt-0.5">
-            Book Procurement Slot
+          <h1 className="text-2xl font-black text-[#0B2545] font-serif mt-0.5">
+            {t("bookSlotTitle")}
           </h1>
-          <p className="text-xs text-slate-500">
-            Select Mandi, specify crop quantity, and pick a workload-recommended time slot.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Select Mandi, specify crop quantity, and pick an AI-recommended workload time window.
           </p>
         </div>
 
         {/* Step Indicator */}
         {bookingStep < 4 && (
-          <div className="bg-slate-100 p-3 rounded border border-slate-200 flex items-center justify-between text-xs">
-            <span className={`font-bold ${bookingStep === 1 ? "text-[#0B2545]" : "text-slate-500"}`}>
-              1. Centre & Crop
+          <div className="bg-white p-3.5 rounded-md border border-slate-200 shadow-sm flex items-center justify-between text-xs overflow-x-auto gap-2">
+            <span className={`font-bold flex items-center gap-1.5 whitespace-nowrap ${bookingStep === 1 ? "text-[#0B2545] bg-blue-50 px-2 py-1 rounded" : "text-slate-500"}`}>
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white inline-flex items-center justify-center text-[10px]">1</span>
+              {t("stepCrop")} & Mandi
             </span>
             <span className="text-slate-300">───</span>
-            <span className={`font-bold ${bookingStep === 2 ? "text-[#0B2545]" : "text-slate-500"}`}>
-              2. Slot Selection
+            <span className={`font-bold flex items-center gap-1.5 whitespace-nowrap ${bookingStep === 2 ? "text-[#0B2545] bg-blue-50 px-2 py-1 rounded" : "text-slate-500"}`}>
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white inline-flex items-center justify-center text-[10px]">2</span>
+              {t("stepDate")} & {t("stepSlot")}
             </span>
             <span className="text-slate-300">───</span>
-            <span className={`font-bold ${bookingStep === 3 ? "text-[#0B2545]" : "text-slate-500"}`}>
-              3. Review & Confirm
+            <span className={`font-bold flex items-center gap-1.5 whitespace-nowrap ${bookingStep === 3 ? "text-[#0B2545] bg-blue-50 px-2 py-1 rounded" : "text-slate-500"}`}>
+              <span className="w-5 h-5 rounded-full bg-[#0B2545] text-white inline-flex items-center justify-center text-[10px]">3</span>
+              {t("stepConfirm")}
             </span>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-300 text-red-800 text-xs p-3 rounded flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+          <div className="bg-rose-50 border border-rose-300 text-rose-800 text-xs p-3.5 rounded flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* STEP 1: Select Centre & Crop */}
         {bookingStep === 1 && (
-          <div className="bg-white border border-slate-200 rounded p-6 shadow-sm space-y-6">
+          <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-6 shadow-sm space-y-6">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                Step 1: Choose Procurement Centre (Mandi)
+                1. Choose Procurement Centre (Mandi)
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {centres.map((c) => (
                   <label
                     key={c.id}
-                    className={`flex items-start justify-between p-3.5 rounded border text-xs cursor-pointer transition ${
+                    className={`flex items-start justify-between p-3.5 rounded-md border text-xs cursor-pointer transition ${
                       selectedCentreId === c.id
-                        ? "bg-blue-50 border-2 border-[#0B2545] text-[#0B2545] font-bold"
+                        ? "bg-blue-50 border-2 border-[#0B2545] text-[#0B2545] font-bold shadow-sm"
                         : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
@@ -151,15 +164,16 @@ function BookSlotContent() {
                         name="centre"
                         checked={selectedCentreId === c.id}
                         onChange={() => setSelectedCentreId(c.id)}
-                        className="mt-0.5"
+                        className="mt-1"
                       />
                       <div>
-                        <p className="font-bold">{c.name}</p>
-                        <p className="text-[11px] text-slate-500 font-normal mt-0.5">
-                          {c.district}, {c.state} (~{c.distance_km} km)
+                        <p className="font-bold text-sm">{c.name}</p>
+                        <p className="text-[11px] text-slate-500 font-normal mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-[#B91C1C]" />
+                          <span>{c.district}, {c.state} (~{c.distance_km} km away)</span>
                         </p>
-                        <p className="text-[10px] text-slate-600 mt-1 font-mono">
-                          Queue: <strong className="text-[#0B2545]">{c.current_waiting_count}</strong> | Est. Wait: <strong className="text-[#B91C1C]">{c.estimated_wait_min} min</strong>
+                        <p className="text-[10px] text-slate-600 mt-1.5 font-mono">
+                          Live Queue: <strong className="text-[#0B2545]">{c.current_waiting_count} waiting</strong> | Est. Wait: <strong className="text-[#B91C1C]">{c.estimated_wait_min} min</strong>
                         </p>
                       </div>
                     </div>
@@ -169,15 +183,15 @@ function BookSlotContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                  Step 2: Select Crop Type
+                  2. Select Crop Type
                 </label>
                 <select
                   value={selectedCrop}
                   onChange={(e) => setSelectedCrop(e.target.value)}
-                  className="w-full p-2.5 border border-slate-300 rounded text-xs bg-white outline-none focus:border-[#0B2545]"
+                  className="w-full p-2.5 border border-slate-300 rounded text-xs bg-white outline-none focus:border-[#0B2545] min-h-[44px]"
                 >
                   {crops.map((crp) => (
                     <option key={crp.name} value={crp.name}>
@@ -189,7 +203,7 @@ function BookSlotContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                  Step 3: Estimated Quantity (in Quintals)
+                  3. {t("estimatedQuantity")}
                 </label>
                 <input
                   type="number"
@@ -198,10 +212,10 @@ function BookSlotContent() {
                   step={0.5}
                   value={quantity}
                   onChange={(e) => setQuantity(parseFloat(e.target.value) || 10)}
-                  className="w-full p-2.5 border border-slate-300 rounded text-xs font-mono outline-none focus:border-[#0B2545]"
+                  className="w-full p-2.5 border border-slate-300 rounded text-xs font-mono outline-none focus:border-[#0B2545] min-h-[44px]"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  1 Quintal = 100 Kilograms (~{(quantity * 100).toFixed(0)} kg total)
+                  1 Quintal = 100 Kilograms (~{(quantity * 100).toFixed(0)} kg produce total)
                 </p>
               </div>
             </div>
@@ -210,7 +224,7 @@ function BookSlotContent() {
               <button
                 type="button"
                 onClick={() => setBookingStep(2)}
-                className="btn-gov-primary text-xs py-2.5 px-6 font-bold flex items-center gap-1.5"
+                className="btn-gov-primary text-xs py-2.5 px-6 font-bold flex items-center gap-1.5 min-h-[44px]"
               >
                 <span>Proceed to Slot Selection</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -221,12 +235,12 @@ function BookSlotContent() {
 
         {/* STEP 2: Select Date & Slot */}
         {bookingStep === 2 && (
-          <div className="bg-white border border-slate-200 rounded p-6 shadow-sm space-y-6">
+          <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-6 shadow-sm space-y-6">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                 Select Procurement Date
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2.5">
                 {[
                   { label: "Today", val: new Date().toISOString().split("T")[0] },
                   {
@@ -242,9 +256,9 @@ function BookSlotContent() {
                     key={d.val}
                     type="button"
                     onClick={() => setSelectedDate(d.val)}
-                    className={`p-3 rounded border text-xs text-center font-bold transition ${
+                    className={`p-3 rounded border text-xs text-center font-bold transition min-h-[44px] ${
                       selectedDate === d.val
-                        ? "bg-[#0B2545] text-white border-[#0B2545]"
+                        ? "bg-[#0B2545] text-white border-[#0B2545] shadow-sm"
                         : "bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
@@ -261,8 +275,9 @@ function BookSlotContent() {
                 <label className="text-xs font-bold text-slate-700 uppercase">
                   Available Time Slots ({selectedCentreObj?.name})
                 </label>
-                <span className="text-[11px] text-emerald-700 font-semibold">
-                  ★ Recommended based on workload
+                <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  <span>AI Recommended for Shortest Wait</span>
                 </span>
               </div>
 
@@ -270,21 +285,22 @@ function BookSlotContent() {
                 {slots.map((slot) => {
                   const isFull = slot.available_count <= 0;
                   const isSelected = selectedSlotId === slot.id;
+                  const isLimited = slot.available_count > 0 && slot.available_count <= 5;
                   return (
                     <div
                       key={slot.id}
                       onClick={() => !isFull && setSelectedSlotId(slot.id)}
-                      className={`p-3.5 rounded border text-xs transition relative ${
+                      className={`p-3.5 rounded-md border text-xs transition relative min-h-[44px] ${
                         isFull
                           ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75"
                           : isSelected
-                          ? "bg-blue-50 border-2 border-[#0B2545] text-[#0B2545] cursor-pointer ring-1 ring-blue-300"
+                          ? "bg-blue-50 border-2 border-[#0B2545] text-[#0B2545] cursor-pointer ring-1 ring-blue-300 shadow-sm"
                           : "bg-white border-slate-300 text-slate-800 hover:border-slate-400 cursor-pointer"
                       }`}
                     >
                       {slot.is_recommended && (
-                        <span className="absolute -top-2 right-2 bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
-                          ★ Recommended
+                        <span className="absolute -top-2 right-2 bg-emerald-700 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                          ★ {t("recommendedSlot")}
                         </span>
                       )}
 
@@ -292,12 +308,23 @@ function BookSlotContent() {
                         <span className="font-bold text-sm font-mono">
                           {slot.start_time} – {slot.end_time}
                         </span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            isFull
+                              ? "bg-rose-100 text-rose-800"
+                              : isLimited
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {isFull ? t("slotFull") : isLimited ? t("slotLimited") : t("slotAvailable")}
+                        </span>
                       </div>
 
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
-                        <span>Capacity:</span>
-                        <strong className={isFull ? "text-red-600" : "text-emerald-700"}>
-                          {isFull ? "Full (0 slots left)" : `${slot.available_count} slots left`}
+                        <span>Remaining Capacity:</span>
+                        <strong className={isFull ? "text-rose-600" : isLimited ? "text-amber-700" : "text-emerald-700"}>
+                          {isFull ? "0 slots left" : `${slot.available_count} slots left`}
                         </strong>
                       </div>
                     </div>
@@ -310,7 +337,7 @@ function BookSlotContent() {
               <button
                 type="button"
                 onClick={() => setBookingStep(1)}
-                className="btn-gov-outline text-xs py-2 px-4 flex items-center gap-1 font-bold"
+                className="btn-gov-outline text-xs py-2 px-4 flex items-center gap-1 font-bold min-h-[44px]"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
@@ -320,7 +347,7 @@ function BookSlotContent() {
                 type="button"
                 disabled={!selectedSlotId}
                 onClick={() => setBookingStep(3)}
-                className="btn-gov-primary text-xs py-2.5 px-6 font-bold flex items-center gap-1.5 disabled:opacity-50"
+                className="btn-gov-primary text-xs py-2.5 px-6 font-bold flex items-center gap-1.5 disabled:opacity-50 min-h-[44px]"
               >
                 <span>Review & Confirm</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -331,12 +358,12 @@ function BookSlotContent() {
 
         {/* STEP 3: Review & Final Confirmation */}
         {bookingStep === 3 && (
-          <div className="bg-white border border-slate-200 rounded p-6 shadow-sm space-y-6">
+          <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-6 shadow-sm space-y-6">
             <h3 className="text-base font-bold text-[#0B2545] border-b pb-2">
-              Review Appointment Booking Summary
+              {t("confirmBookingPrompt")}
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded border border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-md border border-slate-200 text-xs">
               <div>
                 <p className="text-slate-500 font-medium">Procurement Centre:</p>
                 <p className="font-bold text-[#0B2545] text-sm mt-0.5">{selectedCentreObj?.name}</p>
@@ -346,7 +373,7 @@ function BookSlotContent() {
               <div>
                 <p className="text-slate-500 font-medium">Crop Produce:</p>
                 <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedCrop}</p>
-                <p className="text-slate-600 mt-0.5">Quantity: <strong>{quantity} Quintals</strong></p>
+                <p className="text-slate-600 mt-0.5">Estimated Volume: <strong>{quantity} Quintals</strong></p>
               </div>
 
               <div className="pt-2 border-t">
@@ -355,25 +382,25 @@ function BookSlotContent() {
               </div>
 
               <div className="pt-2 border-t">
-                <p className="text-slate-500 font-medium">Appointment Slot Window:</p>
+                <p className="text-slate-500 font-medium">Appointment Window:</p>
                 <p className="font-bold text-[#B91C1C] font-mono text-sm mt-0.5">
                   {selectedSlotObj?.start_time} – {selectedSlotObj?.end_time}
                 </p>
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 p-3.5 rounded text-xs text-blue-900 space-y-1">
+            <div className="bg-blue-50 border border-blue-200 p-3.5 rounded-md text-xs text-blue-900 space-y-1">
               <p className="font-bold">Important Mandi Gate Instructions:</p>
-              <p>• Digital token number will be generated immediately on confirmation.</p>
+              <p>• Your AI-sequenced queue token will be created immediately upon confirmation.</p>
               <p>• Please bring original Farmer ID / Aadhaar Card and vehicle RC for weighbridge entry.</p>
-              <p>• Automated SMS alert will be dispatched to your registered mobile number.</p>
+              <p>• Free real-time SMS departure alerts will be sent to your registered PM-KISAN mobile number.</p>
             </div>
 
             <div className="pt-4 border-t flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setBookingStep(2)}
-                className="btn-gov-outline text-xs py-2 px-4 flex items-center gap-1 font-bold"
+                className="btn-gov-outline text-xs py-2 px-4 flex items-center gap-1 font-bold min-h-[44px]"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Change Slot</span>
@@ -383,7 +410,7 @@ function BookSlotContent() {
                 type="button"
                 disabled={loading}
                 onClick={handleConfirmBooking}
-                className="btn-gov-red text-xs py-2.5 px-8 font-bold flex items-center gap-2 disabled:opacity-50"
+                className="btn-gov-red text-xs py-2.5 px-8 font-bold flex items-center gap-2 disabled:opacity-50 min-h-[44px]"
               >
                 {loading ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -400,15 +427,15 @@ function BookSlotContent() {
 
         {/* STEP 4: Token Generation Success Card (Requirement 14) */}
         {bookingStep === 4 && generatedToken && (
-          <div className="bg-white border-2 border-[#0B2545] rounded shadow-xl overflow-hidden">
+          <div className="bg-white border-2 border-[#0B2545] rounded-md shadow-xl overflow-hidden">
             <div className="bg-[#0B2545] text-white p-5 text-center border-b-2 border-[#B91C1C]">
               <div className="w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center mx-auto mb-2">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
-                BOOKING CONFIRMED & TOKEN GENERATED
+                {t("bookingSuccess")}
               </span>
-              <h2 className="text-2xl font-black font-serif mt-1">
+              <h2 className="text-2xl sm:text-3xl font-black font-serif mt-1">
                 Your Token: {generatedToken.token_display}
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">
@@ -418,7 +445,7 @@ function BookSlotContent() {
 
             <div className="p-6 space-y-6">
               {/* Prominent Token Display */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded border border-slate-200 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-md border border-slate-200 text-xs">
                 <div>
                   <p className="text-slate-500 font-bold uppercase text-[10px]">
                     Procurement Centre
@@ -460,21 +487,23 @@ function BookSlotContent() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href="/farmer/queue"
-                  className="btn-gov-primary flex-1 text-center text-xs py-2.5 font-bold"
+                  className="btn-gov-primary flex-1 text-center text-xs py-2.5 font-bold min-h-[44px] flex items-center justify-center gap-1.5"
                 >
-                  Track Live Queue Position
+                  <Ticket className="w-4 h-4" />
+                  <span>{t("viewMyQueue")}</span>
                 </Link>
                 <Link
                   href="/farmer/dashboard"
-                  className="btn-gov-outline flex-1 text-center text-xs py-2.5 font-bold"
+                  className="btn-gov-outline flex-1 text-center text-xs py-2.5 font-bold min-h-[44px] flex items-center justify-center gap-1.5"
                 >
-                  View Farmer Dashboard
+                  <span>Farmer Dashboard</span>
                 </Link>
                 <Link
                   href="/farmer/centres"
-                  className="btn-gov-outline flex-1 text-center text-xs py-2.5 font-bold"
+                  className="btn-gov-outline flex-1 text-center text-xs py-2.5 font-bold min-h-[44px] flex items-center justify-center gap-1.5"
                 >
-                  Get Mandi Directions
+                  <MapPin className="w-4 h-4 text-[#B91C1C]" />
+                  <span>{t("getDirections")}</span>
                 </Link>
               </div>
             </div>
@@ -492,3 +521,4 @@ export default function FarmerBookSlotPage() {
     </Suspense>
   );
 }
+

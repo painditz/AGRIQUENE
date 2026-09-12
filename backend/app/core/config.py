@@ -12,7 +12,9 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./agriquene.db")
+    _backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _default_db = os.path.join(_backend_dir, "agriquene.db").replace("\\", "/")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{_default_db}")
     
     # CORS
     CORS_ORIGINS: List[str] = [

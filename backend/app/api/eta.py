@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db.session import get_db
-from ..models.models import Token, ProcurementCentre
+from ..models.models import Token, ProcurementCentre, TokenStatus
 from ..schemas.schemas import ETAResponse
 from ..services.eta_service import eta_service
 
@@ -21,7 +21,7 @@ def get_token_eta(token_id: int, db: Session = Depends(get_db)):
     centre = token.centre
     waiting_count = (
         db.query(Token)
-        .filter(Token.centre_id == centre.id, Token.status == "WAITING")
+        .filter(Token.centre_id == centre.id, Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED]))
         .count()
     )
 

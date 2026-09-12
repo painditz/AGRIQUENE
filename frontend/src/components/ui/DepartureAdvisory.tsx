@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Navigation, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Navigation, AlertTriangle, Clock, Home, Car, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 
 interface DepartureAdvisoryProps {
@@ -23,71 +23,105 @@ export function DepartureAdvisory({
 }: DepartureAdvisoryProps) {
   const { t } = useLanguage();
 
-  const isUrgent = urgency === "high" || waitMinutes <= 20;
+  const isUrgent = urgency === "high" || waitMinutes <= 25;
+  const isApproaching = !isUrgent && waitMinutes <= 50;
 
   return (
     <div
-      className={`rounded border p-4.5 ${
+      className={`rounded-md border p-4.5 transition-all ${
         isUrgent
-          ? "bg-amber-50/80 border-amber-400 text-amber-950"
+          ? "bg-rose-50/90 border-rose-400 text-slate-900"
+          : isApproaching
+          ? "bg-amber-50/80 border-amber-300 text-slate-900"
           : "bg-slate-50 border-slate-300 text-slate-900"
       }`}
     >
       <div className="flex items-start gap-3">
         <div
-          className={`p-2 rounded ${
-            isUrgent ? "bg-amber-200 text-amber-900" : "bg-[#0B2545] text-white"
+          className={`p-2.5 rounded flex-shrink-0 ${
+            isUrgent
+              ? "bg-[#B91C1C] text-white"
+              : isApproaching
+              ? "bg-amber-600 text-white"
+              : "bg-[#0B2545] text-white"
           }`}
         >
           {isUrgent ? (
-            <AlertTriangle className="w-5 h-5 animate-bounce" />
+            <AlertTriangle className="w-5 h-5 animate-pulse" />
           ) : (
             <Navigation className="w-5 h-5" />
           )}
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-bold text-sm text-[#0B2545] uppercase tracking-wide">
-              {t("whenToLeave")}
+              {t("transitTimeline")}
             </h4>
             <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                isUrgent ? "bg-[#B91C1C] text-white" : "bg-emerald-700 text-white"
+              className={`text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider ${
+                isUrgent
+                  ? "bg-[#B91C1C] text-white animate-pulse"
+                  : isApproaching
+                  ? "bg-amber-600 text-white"
+                  : "bg-emerald-700 text-white"
               }`}
             >
-              {isUrgent ? "Leave Immediately" : "Transit Window Open"}
+              {isUrgent
+                ? "Leave for Mandi Now"
+                : isApproaching
+                ? "Prepare to Leave"
+                : "Plenty of Time"}
             </span>
           </div>
 
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded border border-slate-200">
-            <div>
-              <p className="text-[11px] font-medium text-slate-500">
-                {t("recommendedDeparture")}
-              </p>
-              <p className="text-xl font-extrabold text-[#0B2545] font-mono mt-0.5">
+          {/* 4-Step Transit Visualizer */}
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+            <div className="bg-white p-2.5 rounded border border-slate-200 flex flex-col items-center">
+              <Home className="w-4 h-4 text-slate-600 mb-1" />
+              <span className="text-[10px] text-slate-500 font-medium">1. Leave Home</span>
+              <span className="font-bold text-xs text-[#0B2545] font-mono mt-0.5">
                 {recommendedDepartureTime}
-              </p>
+              </span>
             </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-500">
-                Calculated Travel + Gate Buffer
-              </p>
-              <p className="text-sm font-bold text-slate-700 mt-1">
-                ~{travelTimeMin} min transit + 15 min check-in
-              </p>
+
+            <div className="bg-white p-2.5 rounded border border-slate-200 flex flex-col items-center">
+              <Car className="w-4 h-4 text-sky-600 mb-1" />
+              <span className="text-[10px] text-slate-500 font-medium">2. Road Transit</span>
+              <span className="font-bold text-xs text-slate-800 font-mono mt-0.5">
+                ~{travelTimeMin} min
+              </span>
+            </div>
+
+            <div className="bg-white p-2.5 rounded border border-slate-200 flex flex-col items-center">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 mb-1" />
+              <span className="text-[10px] text-slate-500 font-medium">3. Entry Buffer</span>
+              <span className="font-bold text-xs text-slate-800 font-mono mt-0.5">
+                ~15 min
+              </span>
+            </div>
+
+            <div className="bg-white p-2.5 rounded border border-slate-200 flex flex-col items-center">
+              <Clock className="w-4 h-4 text-[#B91C1C] mb-1" />
+              <span className="text-[10px] text-slate-500 font-medium">4. Weigh Turn</span>
+              <span className="font-bold text-xs text-[#B91C1C] font-mono mt-0.5">
+                {expectedTurnTime}
+              </span>
             </div>
           </div>
 
-          <p className="text-xs font-semibold text-slate-700 mt-2.5 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-[#B91C1C]" />
-            <span>{departureAdvice}</span>
-          </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            {t("departureNotice")}
-          </p>
+          <div className="mt-2.5 bg-white p-2.5 rounded border border-slate-200">
+            <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[#B91C1C] flex-shrink-0" />
+              <span>{departureAdvice}</span>
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              {t("departureNotice")}
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+

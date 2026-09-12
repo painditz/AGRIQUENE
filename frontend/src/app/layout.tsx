@@ -3,6 +3,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { QueueSocketProvider } from "@/context/QueueSocketContext";
+import { ToastProvider } from "@/context/ToastContext";
 import { TricolorStripe } from "@/components/gov/TricolorStripe";
 import { UtilityBar } from "@/components/gov/UtilityBar";
 import { GovernmentHeader } from "@/components/gov/GovernmentHeader";
@@ -26,19 +27,21 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-[#F8FAFC] text-slate-900 antialiased">
         <LanguageProvider>
           <AuthProvider>
-            <QueueSocketProvider>
-              {/* Official Indian Government Portal Visual Hierarchy */}
-              <TricolorStripe />
-              <UtilityBar />
-              <GovernmentHeader />
-              <MainNavigation />
-              <DemoBar />
+            <ToastProvider>
+              <QueueSocketProvider>
+                {/* Official Indian Government Portal Visual Hierarchy */}
+                <TricolorStripe />
+                <UtilityBar />
+                <GovernmentHeader />
+                <MainNavigation />
+                <DemoBar />
 
-              {/* Main App Content Viewport */}
-              <div className="flex-1">{children}</div>
+                {/* Main App Content Viewport */}
+                <div className="flex-1">{children}</div>
 
-              <Footer />
-            </QueueSocketProvider>
+                <Footer />
+              </QueueSocketProvider>
+            </ToastProvider>
           </AuthProvider>
         </LanguageProvider>
       </body>

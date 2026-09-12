@@ -32,8 +32,14 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
         .all()
     )
     
-    # Identify currently serving token
-    serving_token = next((t for t in tokens if t.status in [TokenStatus.PROCESSING, TokenStatus.CALLED]), None)
+    # Identify currently serving token: pick the most recent CALLED or PROCESSING token
+    active_served = [t for t in tokens if t.status in [TokenStatus.CALLED, TokenStatus.PROCESSING]]
+    serving_token = None
+    if active_served:
+        serving_token = max(
+            active_served,
+            key=lambda t: t.called_at or t.started_at or t.created_at or datetime.min
+        )
     
     # Total completed today
     completed_today = (
@@ -120,17 +126,26 @@ async def call_next_token(payload: QueueCallRequest, centre_id: Optional[int] = 
     if not target_token:
         raise HTTPException(status_code=400, detail="No waiting tokens found in queue for this centre.")
         
-    # Mark any previously processing token at this counter as completed
+    # Mark any previously active token at this counter as completed
     prev_active = (
         db.query(Token)
         .filter(
             Token.centre_id == centre_id,
-            Token.status == TokenStatus.CALLED
+            Token.status.in_([TokenStatus.CALLED, TokenStatus.PROCESSING]),
+            Token.id != target_token.id
         )
         .all()
     )
     for p in prev_active:
-        p.status = TokenStatus.PROCESSING
+        # If assigned to this counter or counter unassigned
+        p_counter = p.queue_entry.counter_assigned if p.queue_entry else 1
+        if p_counter == payload.counter_number:
+            p.status = TokenStatus.COMPLETED
+            p.completed_at = datetime.utcnow()
+            p.current_position = 0
+            if p.queue_entry:
+                p.queue_entry.is_active = False
+                p.queue_entry.position = 0
         
     # Update target token to CALLED
     target_token.status = TokenStatus.CALLED
@@ -270,6 +285,28 @@ async def skip_token(token_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Token not found")
         
     token.status = TokenStatus.SKIPPED
+    token.current_position = 0
+    if token.queue_entry:
+        token.queue_entry.is_active = False
+        token.queue_entry.position = 0
+
+    # Re-index remaining waiting tokens
+    remaining_waiting = (
+        db.query(Token)
+        .filter(
+            Token.centre_id == token.centre_id,
+            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED]),
+            Token.id != token.id
+        )
+        .order_by(Token.current_position.asc(), Token.id.asc())
+        .all()
+    )
+    for idx, t in enumerate(remaining_waiting):
+        new_pos = idx + 1
+        t.current_position = new_pos
+        if t.queue_entry:
+            t.queue_entry.position = new_pos
+
     db.commit()
 
     await manager.broadcast_to_centre(str(token.centre_id), {
@@ -277,7 +314,8 @@ async def skip_token(token_id: int, db: Session = Depends(get_db)):
         "centre_id": token.centre_id,
         "token_id": token.id,
         "token_display": token.token_display,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "total_waiting": len(remaining_waiting)
     })
 
-    return {"success": True, "message": f"Token {token.token_display} skipped / marked absent."}
+    return {"success": True, "message": f"Token {token.token_display} skipped / marked absent.", "remaining_waiting": len(remaining_waiting)}

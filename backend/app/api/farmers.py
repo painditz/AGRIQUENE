@@ -150,11 +150,19 @@ def get_farmer_active_token(user: User = Depends(get_current_farmer_user), db: S
 
     # Calculate real-time ETA
     centre = active_token.centre
+    waiting_count = (
+        db.query(Token)
+        .filter(
+            Token.centre_id == centre.id,
+            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED])
+        )
+        .count()
+    )
     eta_data = eta_service.calculate_eta(
         token_id=active_token.id,
         token_number=active_token.token_number,
         position=active_token.current_position,
-        queue_length=centre.capacity_per_day,
+        queue_length=max(1, waiting_count),
         centre_id=centre.id,
         active_counters=centre.active_counters,
         avg_processing_time=centre.avg_processing_time_min,

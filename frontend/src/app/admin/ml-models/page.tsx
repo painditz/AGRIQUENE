@@ -168,6 +168,17 @@ export default function AdminMLModelsPage() {
                   Captures non-linear compounding during morning arrival spikes (10:00 AM – 1:00 PM).
                 </p>
               </div>
+
+              {/* Why this matters */}
+              <div className="bg-emerald-50 p-3 rounded border border-emerald-300 space-y-1">
+                <p className="font-bold text-emerald-950 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                  Why This Matters for Farmers & Mandis
+                </p>
+                <p className="text-[11px] text-emerald-900 leading-relaxed">
+                  Accurate AI waiting times eliminate 3–5 hours of chaotic standing in mandi dust and diesel fumes. Farmers leave home only when their turn is near, reducing tractor idling fuel costs, preventing crop spoilage, and smoothing mandi throughput.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -175,3 +186,4 @@ export default function AdminMLModelsPage() {
     </AdminLayout>
   );
 }
+

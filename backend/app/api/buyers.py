@@ -48,6 +48,7 @@ def get_buyer_dashboard(centre_id: Optional[int] = 1, db: Session = Depends(get_
     current_serving = (
         db.query(Token)
         .filter(Token.centre_id == centre_id, Token.status.in_([TokenStatus.PROCESSING, TokenStatus.CALLED]))
+        .order_by(Token.called_at.desc(), Token.started_at.desc(), Token.id.desc())
         .first()
     )
 

@@ -219,6 +219,7 @@ class Token(Base):
     booking = relationship("Booking", back_populates="token")
     farmer = relationship("Farmer", back_populates="tokens")
     centre = relationship("ProcurementCentre", back_populates="tokens")
+    slot = relationship("Slot")
     queue_entry = relationship("QueueEntry", back_populates="token", uselist=False, cascade="all, delete-orphan")
     procurement_record = relationship("ProcurementRecord", back_populates="token", uselist=False)
 

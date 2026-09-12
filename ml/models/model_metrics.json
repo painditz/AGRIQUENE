@@ -2,59 +2,59 @@
   "model_type": "XGBoost Regressor",
   "training_samples": 6400,
   "test_samples": 1600,
-  "mae_minutes": 3.73,
-  "rmse_minutes": 5.97,
-  "r2_score": 0.9905,
+  "mae_minutes": 3.67,
+  "rmse_minutes": 5.83,
+  "r2_score": 0.9909,
   "feature_importances": [
     {
       "feature": "token_position",
-      "importance": 0.4563906788825989,
-      "percentage": 45.63999938964844
+      "importance": 0.4528638422489166,
+      "percentage": 45.290000915527344
     },
     {
       "feature": "active_counters",
-      "importance": 0.3213987648487091,
-      "percentage": 32.13999938964844
+      "importance": 0.32005003094673157,
+      "percentage": 32.0099983215332
     },
     {
       "feature": "queue_length",
-      "importance": 0.08906491845846176,
-      "percentage": 8.90999984741211
+      "importance": 0.0905829593539238,
+      "percentage": 9.0600004196167
     },
     {
       "feature": "crop_factor",
-      "importance": 0.05163303017616272,
-      "percentage": 5.159999847412109
+      "importance": 0.04898848757147789,
+      "percentage": 4.900000095367432
     },
     {
       "feature": "avg_processing_time_min",
-      "importance": 0.040505003184080124,
-      "percentage": 4.050000190734863
-    },
-    {
-      "feature": "hour_of_day",
-      "importance": 0.014971280470490456,
-      "percentage": 1.5
+      "importance": 0.04182901605963707,
+      "percentage": 4.179999828338623
     },
     {
       "feature": "day_of_week",
-      "importance": 0.011124737560749054,
-      "percentage": 1.1100000143051147
+      "importance": 0.020048946142196655,
+      "percentage": 2.0
     },
     {
-      "feature": "historical_avg_wait_min",
-      "importance": 0.005528783425688744,
-      "percentage": 0.550000011920929
+      "feature": "hour_of_day",
+      "importance": 0.013843676075339317,
+      "percentage": 1.3799999952316284
     },
     {
       "feature": "centre_workload_pct",
-      "importance": 0.005194797646254301,
-      "percentage": 0.5199999809265137
+      "importance": 0.0053262305445969105,
+      "percentage": 0.5299999713897705
+    },
+    {
+      "feature": "historical_avg_wait_min",
+      "importance": 0.0036036374513059855,
+      "percentage": 0.36000001430511475
     },
     {
       "feature": "quantity_quintals",
-      "importance": 0.004188047721982002,
-      "percentage": 0.41999998688697815
+      "importance": 0.002863137749955058,
+      "percentage": 0.28999999165534973
     }
   ],
   "features": [

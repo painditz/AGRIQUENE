@@ -29,27 +29,44 @@ export function QueueVisualizer({
   ];
 
   // Active serving
+  const isUserServing = servingTokenDisplay === userTokenDisplay;
   const servingItem = {
     num: baseServingNum,
-    display: `#${baseServingNum}`,
+    display: servingTokenDisplay,
     status: "PROCESSING",
     isServing: true,
+    isUser: isUserServing,
   };
 
-  // Build waiting queue tokens up to user token + 3 trailing tokens
-  const waitingTokens = [];
-  const startWait = baseServingNum + 1;
-  const endWait = Math.max(userNum + 3, startWait + 16);
+  // Build waiting queue tokens from real queue items if available
+  const waitingTokens: Array<{ num: number; display: string; status: string; isUser: boolean; pos: number }> = [];
+  const waitingFromQueue = queue?.filter((q) => q.status === "WAITING" || q.status === "ARRIVED") || [];
 
-  for (let i = startWait; i <= endWait; i++) {
-    const isUser = i === userNum;
-    waitingTokens.push({
-      num: i,
-      display: `#${i}`,
-      status: isUser ? "YOU" : "WAITING",
-      isUser,
-      pos: i - baseServingNum,
+  if (waitingFromQueue.length > 0) {
+    waitingFromQueue.forEach((q) => {
+      const isUser = q.token_display === userTokenDisplay;
+      waitingTokens.push({
+        num: q.token_number,
+        display: q.token_display,
+        status: isUser ? "YOU" : q.status,
+        isUser,
+        pos: q.position,
+      });
     });
+  } else {
+    const startWait = baseServingNum + 1;
+    const endWait = Math.max(userNum + 3, startWait + 16);
+
+    for (let i = startWait; i <= endWait; i++) {
+      const isUser = i === userNum;
+      waitingTokens.push({
+        num: i,
+        display: `#${i}`,
+        status: isUser ? "YOU" : "WAITING",
+        isUser,
+        pos: i - baseServingNum,
+      });
+    }
   }
 
   return (
@@ -96,14 +113,20 @@ export function QueueVisualizer({
           ))}
 
           {/* Current Serving Token */}
-          <div className="flex flex-col items-center bg-rose-50 border-2 border-[#B91C1C] text-[#B91C1C] px-4 py-2 rounded shadow-md relative">
-            <span className="absolute -top-2.5 bg-[#B91C1C] text-white text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full tracking-wider animate-pulse">
-              SERVING NOW
+          <div className={`flex flex-col items-center px-4 py-2 rounded shadow-md relative ${
+            servingItem.isUser
+              ? "bg-amber-50 border-2 border-amber-500 text-amber-950 ring-2 ring-amber-300 animate-pulse"
+              : "bg-rose-50 border-2 border-[#B91C1C] text-[#B91C1C]"
+          }`}>
+            <span className={`absolute -top-2.5 text-white text-[9px] font-black uppercase px-2 py-0.2 rounded-full tracking-wider animate-pulse ${
+              servingItem.isUser ? "bg-amber-600" : "bg-[#B91C1C]"
+            }`}>
+              {servingItem.isUser ? "YOU ARE SERVING NOW!" : "SERVING NOW"}
             </span>
             <span className="text-sm font-black font-mono tracking-tight mt-1">
               {servingItem.display}
             </span>
-            <span className="text-[10px] font-bold text-rose-700 mt-0.5">Counter #1</span>
+            <span className={`text-[10px] font-bold mt-0.5 ${servingItem.isUser ? "text-amber-800" : "text-rose-700"}`}>Counter #1</span>
           </div>
 
           <ArrowRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
