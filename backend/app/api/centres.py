@@ -1,0 +1,146 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from ..db.session import get_db
+from ..models.models import ProcurementCentre, Slot, Token, TokenStatus, CentreStatus
+from ..schemas.schemas import CentreResponse, SlotResponse, CentreQueueStatusResponse, QueueItem
+from ..services.eta_service import eta_service
+
+router = APIRouter(prefix="/centres", tags=["Procurement Centres"])
+
+@router.get("", response_model=List[CentreResponse])
+def list_centres(
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(ProcurementCentre)
+    if district:
+        query = query.filter(ProcurementCentre.district.ilike(f"%{district}%"))
+    if state:
+        query = query.filter(ProcurementCentre.state.ilike(f"%{state}%"))
+        
+    centres = query.all()
+    results = []
+    
+    # Distance mock table based on centre code
+    distances = {
+        "APC-UP-GZB-01": 2.4,
+        "APC-HR-KNL-02": 4.8,
+        "APC-RJ-JPR-03": 6.2,
+        "APC-PB-LDH-04": 3.1,
+        "APC-MP-BPL-05": 5.5
+    }
+    
+    for c in centres:
+        # Count currently waiting tokens
+        waiting_count = (
+            db.query(Token)
+            .filter(Token.centre_id == c.id, Token.status == TokenStatus.WAITING)
+            .count()
+        )
+        
+        # Available slots
+        available_slots = (
+            db.query(Slot)
+            .filter(Slot.centre_id == c.id, Slot.is_active == True)
+            .all()
+        )
+        total_avail = sum(max(0, s.capacity - s.booked_count) for s in available_slots)
+        
+        # Calculate centre average wait time
+        est_wait = max(5, int(round((waiting_count * c.avg_processing_time_min) / max(1, c.active_counters))))
+        
+        results.append(CentreResponse(
+            id=c.id,
+            name=c.name,
+            code=c.code,
+            address=c.address,
+            district=c.district,
+            state=c.state,
+            pin_code=c.pin_code,
+            latitude=c.latitude,
+            longitude=c.longitude,
+            contact_phone=c.contact_phone,
+            capacity_per_day=c.capacity_per_day,
+            active_counters=c.active_counters,
+            total_counters=c.total_counters,
+            avg_processing_time_min=c.avg_processing_time_min,
+            workload_pct=c.workload_pct,
+            open_time=c.open_time,
+            close_time=c.close_time,
+            status=c.status,
+            current_waiting_count=waiting_count,
+            estimated_wait_min=est_wait,
+            available_slots_today=total_avail,
+            distance_km=distances.get(c.code, 3.5)
+        ))
+    return results
+
+@router.get("/{centre_id}", response_model=CentreResponse)
+def get_centre_detail(centre_id: int, db: Session = Depends(get_db)):
+    c = db.query(ProcurementCentre).filter(ProcurementCentre.id == centre_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Procurement Centre not found")
+        
+    waiting_count = (
+        db.query(Token)
+        .filter(Token.centre_id == c.id, Token.status == TokenStatus.WAITING)
+        .count()
+    )
+    
+    slots = db.query(Slot).filter(Slot.centre_id == c.id, Slot.is_active == True).all()
+    total_avail = sum(max(0, s.capacity - s.booked_count) for s in slots)
+    est_wait = max(5, int(round((waiting_count * c.avg_processing_time_min) / max(1, c.active_counters))))
+
+    return CentreResponse(
+        id=c.id,
+        name=c.name,
+        code=c.code,
+        address=c.address,
+        district=c.district,
+        state=c.state,
+        pin_code=c.pin_code,
+        latitude=c.latitude,
+        longitude=c.longitude,
+        contact_phone=c.contact_phone,
+        capacity_per_day=c.capacity_per_day,
+        active_counters=c.active_counters,
+        total_counters=c.total_counters,
+        avg_processing_time_min=c.avg_processing_time_min,
+        workload_pct=c.workload_pct,
+        open_time=c.open_time,
+        close_time=c.close_time,
+        status=c.status,
+        current_waiting_count=waiting_count,
+        estimated_wait_min=est_wait,
+        available_slots_today=total_avail,
+        distance_km=2.4
+    )
+
+@router.get("/{centre_id}/slots", response_model=List[SlotResponse])
+def get_centre_slots(
+    centre_id: int,
+    date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Slot).filter(Slot.centre_id == centre_id, Slot.is_active == True)
+    if date:
+        query = query.filter(Slot.date == date)
+    slots = query.all()
+    
+    return [
+        SlotResponse(
+            id=s.id,
+            centre_id=s.centre_id,
+            date=s.date,
+            start_time=s.start_time,
+            end_time=s.end_time,
+            capacity=s.capacity,
+            booked_count=s.booked_count,
+            available_count=max(0, s.capacity - s.booked_count),
+            is_recommended=s.is_recommended,
+            is_active=s.is_active
+        )
+        for s in slots
+    ]

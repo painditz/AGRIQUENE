@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary-navy: #0B2545;
+    --navy-light: #133E68;
+    --gov-red: #B91C1C;
+    --gov-red-hover: #991B1B;
+    --gov-saffron: #EA580C;
+    --gov-green: #15803D;
+    --gov-gold: #D97706;
+    
+    --bg-main: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --text-main: #0F172A;
+    --text-muted: #475569;
+    --border-gov: #CBD5E1;
+    --border-dark: #0B2545;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Government High Contrast Mode */
+.high-contrast-mode {
+  --bg-main: #000000 !important;
+  --bg-card: #121212 !important;
+  --text-main: #FFFFFF !important;
+  --text-muted: #E2E8F0 !important;
+  --border-gov: #FFFFFF !important;
+  --primary-navy: #000000 !important;
+}
+
+.high-contrast-mode body {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+.high-contrast-mode .gov-card,
+.high-contrast-mode .bg-white {
+  background-color: #121212 !important;
+  color: #FFFFFF !important;
+  border-color: #FFFFFF !important;
+}
+
+/* Accessibility Text Scaling */
+.text-scale-large {
+  font-size: 110% !important;
+}
+
+.text-scale-xlarge {
+  font-size: 125% !important;
+}
+
+/* Clean Institutional Government Components */
+.gov-card {
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(11, 37, 69, 0.05);
+}
+
+.gov-card-header {
+  border-bottom: 2px solid #0B2545;
+  background-color: #F1F5F9;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  color: #0B2545;
+}
+
+.btn-gov-primary {
+  background-color: #0B2545;
+  color: #FFFFFF;
+  border: 1px solid #0B2545;
+  border-radius: 3px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.btn-gov-primary:hover {
+  background-color: #133E68;
+}
+
+.btn-gov-red {
+  background-color: #B91C1C;
+  color: #FFFFFF;
+  border: 1px solid #B91C1C;
+  border-radius: 3px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.btn-gov-red:hover {
+  background-color: #991B1B;
+}
+
+.btn-gov-outline {
+  background-color: #FFFFFF;
+  color: #0B2545;
+  border: 1px solid #0B2545;
+  border-radius: 3px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-gov-outline:hover {
+  background-color: #F1F5F9;
+}
+
+/* Pulse indicator */
+@keyframes govPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+.live-pulse {
+  animation: govPulse 2s infinite ease-in-out;
+}

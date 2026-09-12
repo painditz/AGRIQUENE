@@ -1,0 +1,74 @@
+{
+  "model_type": "XGBoost Regressor",
+  "training_samples": 6400,
+  "test_samples": 1600,
+  "mae_minutes": 3.73,
+  "rmse_minutes": 5.97,
+  "r2_score": 0.9905,
+  "feature_importances": [
+    {
+      "feature": "token_position",
+      "importance": 0.4563906788825989,
+      "percentage": 45.63999938964844
+    },
+    {
+      "feature": "active_counters",
+      "importance": 0.3213987648487091,
+      "percentage": 32.13999938964844
+    },
+    {
+      "feature": "queue_length",
+      "importance": 0.08906491845846176,
+      "percentage": 8.90999984741211
+    },
+    {
+      "feature": "crop_factor",
+      "importance": 0.05163303017616272,
+      "percentage": 5.159999847412109
+    },
+    {
+      "feature": "avg_processing_time_min",
+      "importance": 0.040505003184080124,
+      "percentage": 4.050000190734863
+    },
+    {
+      "feature": "hour_of_day",
+      "importance": 0.014971280470490456,
+      "percentage": 1.5
+    },
+    {
+      "feature": "day_of_week",
+      "importance": 0.011124737560749054,
+      "percentage": 1.1100000143051147
+    },
+    {
+      "feature": "historical_avg_wait_min",
+      "importance": 0.005528783425688744,
+      "percentage": 0.550000011920929
+    },
+    {
+      "feature": "centre_workload_pct",
+      "importance": 0.005194797646254301,
+      "percentage": 0.5199999809265137
+    },
+    {
+      "feature": "quantity_quintals",
+      "importance": 0.004188047721982002,
+      "percentage": 0.41999998688697815
+    }
+  ],
+  "features": [
+    "queue_length",
+    "token_position",
+    "active_counters",
+    "avg_processing_time_min",
+    "centre_workload_pct",
+    "hour_of_day",
+    "day_of_week",
+    "crop_factor",
+    "quantity_quintals",
+    "historical_avg_wait_min"
+  ],
+  "target": "actual_wait_minutes",
+  "trained_at": "2026-09-12T00:00:00Z"
+}
