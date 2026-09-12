@@ -59,6 +59,7 @@ class User(Base):
     buyer_profile = relationship("Buyer", back_populates="user", uselist=False, cascade="all, delete-orphan")
     admin_profile = relationship("Admin", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    audit_logs = relationship("AuditLog", back_populates="user")
 
 class Farmer(Base):
     __tablename__ = "farmers"
@@ -76,9 +77,11 @@ class Farmer(Base):
     bank_account_masked = Column(String(30), default="XXXX-XXXX-4921")
     ifsc_code = Column(String(20), default="SBIN0001234")
     preferred_crop = Column(String(50), default="Wheat")
+    preferred_centre_id = Column(Integer, ForeignKey("procurement_centres.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="farmer_profile")
+    preferred_centre = relationship("ProcurementCentre")
     bookings = relationship("Booking", back_populates="farmer", cascade="all, delete-orphan")
     tokens = relationship("Token", back_populates="farmer", cascade="all, delete-orphan")
     procurements = relationship("ProcurementRecord", back_populates="farmer")
@@ -321,3 +324,17 @@ class ETAPrediction(Base):
     model_version = Column(String(50), default="XGBoost-v1.0")
     confidence_score = Column(Float, default=0.94)
     calculated_at = Column(DateTime, default=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    action = Column(String(100), nullable=False, index=True) # e.g. USER_LOGIN, TOKEN_CALLED, etc.
+    entity_type = Column(String(50), nullable=False, index=True) # TOKEN, BOOKING, CENTRE, PAYMENT, USER
+    entity_id = Column(String(50), nullable=True)
+    details = Column(Text, nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    user = relationship("User", back_populates="audit_logs")

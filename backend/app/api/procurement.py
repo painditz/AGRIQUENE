@@ -12,6 +12,7 @@ from ..schemas.schemas import ProcurementSubmitRequest, ProcurementResponse
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
 from ..services.payment_service import payment_service
+from ..services.audit_service import audit_service
 from ..core.websocket import manager
 
 router = APIRouter(prefix="/procurement", tags=["Procurement Execution"])
@@ -116,6 +117,12 @@ async def submit_procurement(payload: ProcurementSubmitRequest, db: Session = De
         "amount": total_amount,
         "timestamp": datetime.now().isoformat()
     })
+
+    audit_service.log_event(
+        db, action="PROCUREMENT_RECORDED", entity_type="PROCUREMENT",
+        entity_id=str(record.id),
+        details=f"Procurement {receipt_no} completed for Token {token.token_display}: {net_weight} Qtl {crop_name}, Total ₹{total_amount:,.2f}"
+    )
 
     return ProcurementResponse(
         id=record.id,

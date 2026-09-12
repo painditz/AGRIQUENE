@@ -10,31 +10,15 @@ from ..schemas.schemas import (
     FarmerRegisterRequest, FarmerProfileResponse,
     TokenResponse, ProcurementResponse, PaymentResponse
 )
-from ..core.security import decode_access_token
-from ..services.eta_service import eta_service
+from ..core.security import get_current_user
+from ..models.models import UserRole
+from ..services.audit_service import audit_service
 
 router = APIRouter(prefix="/farmers", tags=["Farmer Services"])
 
-def get_current_farmer_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
-    if not authorization:
-        # Default to demo farmer for easy browser testing
-        user = db.query(User).filter(User.mobile_number == "9876543210").first()
-        if user:
-            return user
-        raise HTTPException(status_code=401, detail="Authentication token required.")
-        
-    token_str = authorization.replace("Bearer ", "").strip()
-    payload = decode_access_token(token_str)
-    if not payload or "sub" not in payload:
-        # Fallback to demo farmer
-        user = db.query(User).filter(User.mobile_number == "9876543210").first()
-        if user:
-            return user
-        raise HTTPException(status_code=401, detail="Invalid token")
-        
-    user = db.query(User).filter(User.id == int(payload["sub"])).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def get_current_farmer_user(user: User = Depends(get_current_user)) -> User:
+    if user.role not in [UserRole.FARMER, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Access denied: Farmer credentials required.")
     return user
 
 @router.get("/profile", response_model=FarmerProfileResponse)
@@ -71,6 +55,8 @@ def get_farmer_profile(user: User = Depends(get_current_farmer_user), db: Sessio
         bank_account_masked=profile.bank_account_masked,
         ifsc_code=profile.ifsc_code,
         preferred_crop=profile.preferred_crop,
+        preferred_centre_id=profile.preferred_centre_id,
+        preferred_centre_name=profile.preferred_centre.name if profile.preferred_centre else None,
         created_at=profile.created_at
     )
 
@@ -96,10 +82,19 @@ def register_farmer_profile(
     profile.pin_code = payload.pin_code
     profile.land_acres = payload.land_acres
     profile.preferred_crop = payload.preferred_crop
+    if payload.preferred_centre_id is not None:
+        profile.preferred_centre_id = payload.preferred_centre_id
     
     db.commit()
     db.refresh(profile)
     db.refresh(user)
+    
+    centre_name = profile.preferred_centre.name if profile.preferred_centre else None
+    audit_service.log_event(
+        db, action="FARMER_REGISTERED", entity_type="FARMER",
+        entity_id=str(profile.id), user_id=user.id,
+        details=f"Farmer {user.full_name} ({user.mobile_number}) registered profile in {profile.district}, {profile.state} (Mandi: {centre_name or 'Not assigned'})"
+    )
     
     return FarmerProfileResponse(
         id=profile.id,
@@ -117,6 +112,8 @@ def register_farmer_profile(
         bank_account_masked=profile.bank_account_masked,
         ifsc_code=profile.ifsc_code,
         preferred_crop=profile.preferred_crop,
+        preferred_centre_id=profile.preferred_centre_id,
+        preferred_centre_name=centre_name,
         created_at=profile.created_at
     )
 

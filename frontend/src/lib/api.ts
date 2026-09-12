@@ -184,6 +184,19 @@ export interface SMSLogItem {
   sent_at: string;
 }
 
+export interface AuditLogItem {
+  id: number;
+  user_id?: number;
+  user_name?: string;
+  user_role?: string;
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  details?: string;
+  ip_address?: string;
+  created_at: string;
+}
+
 class ApiClient {
   private getHeaders(): HeadersInit {
     const headers: HeadersInit = {
@@ -191,7 +204,7 @@ class ApiClient {
     };
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("agriquene_token");
-      if (token) {
+      if (token && token !== "undefined" && token !== "null" && token.trim() !== "") {
         headers["Authorization"] = `Bearer ${token}`;
       }
     }
@@ -199,18 +212,46 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
-    });
+    const primaryUrl = `${API_BASE_URL}${endpoint}`;
+    
+    // Determine alternate URL for loopback resiliency between localhost and 127.0.0.1
+    let alternateUrl: string | null = null;
+    if (primaryUrl.includes("localhost:8000")) {
+      alternateUrl = primaryUrl.replace("localhost:8000", "127.0.0.1:8000");
+    } else if (primaryUrl.includes("127.0.0.1:8000")) {
+      alternateUrl = primaryUrl.replace("127.0.0.1:8000", "localhost:8000");
+    }
+
+    const headers = {
+      ...this.getHeaders(),
+      ...options.headers,
+    };
+
+    let res: Response;
+    try {
+      res = await fetch(primaryUrl, {
+        ...options,
+        headers,
+      });
+    } catch (netErr: any) {
+      // If primary failed due to network / connection refusal, try alternate loopback host
+      if (alternateUrl) {
+        try {
+          res = await fetch(alternateUrl, {
+            ...options,
+            headers,
+          });
+        } catch {
+          throw new Error("Unable to connect to AGRIQUENE procurement service. Please ensure the backend is running at http://localhost:8000.");
+        }
+      } else {
+        throw new Error("Unable to connect to AGRIQUENE procurement service. Please ensure the backend is running at http://localhost:8000.");
+      }
+    }
 
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ detail: "Network request failed" }));
-      throw new Error(errorData.detail || `Error: ${res.status}`);
+      const errorData = await res.json().catch(() => ({ detail: `Server responded with status ${res.status}` }));
+      throw new Error(errorData.detail || `Server responded with error ${res.status}`);
     }
 
     return res.json();
@@ -383,6 +424,57 @@ class ApiClient {
 
   async getAdminBuyers(): Promise<any[]> {
     return this.request("/admin/buyers");
+  }
+
+  async unifiedLogin(data: { identifier: string; password?: string; otp?: string }): Promise<AuthResponse> {
+    return this.request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAuditLogs(action?: string, entity_type?: string, limit: number = 50): Promise<AuditLogItem[]> {
+    const params = new URLSearchParams();
+    if (action) params.append("action", action);
+    if (entity_type) params.append("entity_type", entity_type);
+    params.append("limit", limit.toString());
+    return this.request<AuditLogItem[]>(`/admin/audit-logs?${params.toString()}`);
+  }
+
+  async getAdminTokens(params?: { centre_id?: number; status?: string; search?: string }): Promise<any[]> {
+    const q = new URLSearchParams();
+    if (params?.centre_id) q.append("centre_id", params.centre_id.toString());
+    if (params?.status) q.append("status", params.status);
+    if (params?.search) q.append("search", params.search);
+    return this.request<any[]>(`/admin/tokens?${q.toString()}`);
+  }
+
+  async getAdminSlots(centre_id?: number, date?: string): Promise<any[]> {
+    const q = new URLSearchParams();
+    if (centre_id) q.append("centre_id", centre_id.toString());
+    if (date) q.append("date", date);
+    return this.request<any[]>(`/admin/slots?${q.toString()}`);
+  }
+
+  async createSlot(data: any): Promise<any> {
+    return this.request("/admin/slots", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createCentre(data: any): Promise<any> {
+    return this.request("/admin/centres", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCentre(centreId: number, data: any): Promise<any> {
+    return this.request(`/admin/centres/${centreId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   }
 
   async getAnalyticsOverview(): Promise<any> {

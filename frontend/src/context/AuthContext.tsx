@@ -1,10 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { AuthResponse } from "@/lib/api";
+import { api, AuthResponse } from "@/lib/api";
 import { DEMO_PRESETS } from "@/lib/constants";
 
-interface UserInfo {
+export interface UserInfo {
   id: number;
   fullName: string;
   mobileNumber: string;
@@ -18,9 +18,10 @@ interface AuthContextType {
   user: UserInfo | null;
   token: string | null;
   isAuthenticated: boolean;
+  hasRole: (role: "FARMER" | "BUYER" | "ADMIN") => boolean;
   login: (authData: AuthResponse) => void;
   logout: () => void;
-  switchRoleQuick: (role: "FARMER" | "BUYER" | "ADMIN") => void;
+  switchRoleQuick: (role: "FARMER" | "BUYER" | "ADMIN") => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,22 +38,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
+        return;
       } catch {
         localStorage.removeItem("agriquene_token");
         localStorage.removeItem("agriquene_user");
       }
-    } else {
-      // Default to demo farmer if not logged in for instant evaluation
-      const defaultFarmer: UserInfo = {
-        id: 1,
-        fullName: DEMO_PRESETS.farmer.name,
-        mobileNumber: DEMO_PRESETS.farmer.mobile,
-        role: "FARMER",
-        isRegistered: true,
-      };
-      setUser(defaultFarmer);
-      localStorage.setItem("agriquene_user", JSON.stringify(defaultFarmer));
     }
+
+    // Attempt dynamic login for demo farmer on fresh mount
+    async function initDemo() {
+      try {
+        const authData = await api.unifiedLogin({
+          identifier: DEMO_PRESETS.farmer.mobile,
+          password: "farmer123",
+        });
+        login(authData);
+      } catch {
+        const defaultFarmer: UserInfo = {
+          id: 1,
+          fullName: DEMO_PRESETS.farmer.name,
+          mobileNumber: DEMO_PRESETS.farmer.mobile,
+          role: "FARMER",
+          isRegistered: true,
+        };
+        setUser(defaultFarmer);
+        setToken("dev-farmer-token");
+        localStorage.setItem("agriquene_token", "dev-farmer-token");
+        localStorage.setItem("agriquene_user", JSON.stringify(defaultFarmer));
+      }
+    }
+    initDemo();
   }, []);
 
   const login = (authData: AuthResponse) => {
@@ -78,7 +93,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("agriquene_user");
   };
 
-  const switchRoleQuick = (role: "FARMER" | "BUYER" | "ADMIN") => {
+  const hasRole = (requiredRole: "FARMER" | "BUYER" | "ADMIN") => {
+    return user?.role === requiredRole;
+  };
+
+  const switchRoleQuick = async (role: "FARMER" | "BUYER" | "ADMIN") => {
+    try {
+      let authData: AuthResponse | null = null;
+      if (role === "FARMER") {
+        authData = await api.unifiedLogin({
+          identifier: DEMO_PRESETS.farmer.mobile,
+          password: "farmer123",
+        });
+      } else if (role === "BUYER") {
+        authData = await api.unifiedLogin({
+          identifier: DEMO_PRESETS.buyer.empId,
+          password: "buyer123",
+        });
+      } else if (role === "ADMIN") {
+        authData = await api.unifiedLogin({
+          identifier: DEMO_PRESETS.admin.identifier,
+          password: "admin123",
+        });
+      }
+      if (authData) {
+        login(authData);
+        return;
+      }
+    } catch (e) {
+      console.warn("Backend dynamic login failed, using fallback dev credentials", e);
+    }
+
+    // Fallback: set dev token if backend is unreachable
+    const devToken = role === "ADMIN" ? "dev-admin-token" : role === "BUYER" ? "dev-buyer-token" : "dev-farmer-token";
     if (role === "FARMER") {
       const u: UserInfo = {
         id: 1,
@@ -88,6 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isRegistered: true,
       };
       setUser(u);
+      setToken(devToken);
+      localStorage.setItem("agriquene_token", devToken);
       localStorage.setItem("agriquene_user", JSON.stringify(u));
     } else if (role === "BUYER") {
       const u: UserInfo = {
@@ -100,6 +149,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         centreName: "Agri Procurement Centre – Ghaziabad Mandi",
       };
       setUser(u);
+      setToken(devToken);
+      localStorage.setItem("agriquene_token", devToken);
       localStorage.setItem("agriquene_user", JSON.stringify(u));
     } else if (role === "ADMIN") {
       const u: UserInfo = {
@@ -110,6 +161,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isRegistered: true,
       };
       setUser(u);
+      setToken(devToken);
+      localStorage.setItem("agriquene_token", devToken);
       localStorage.setItem("agriquene_user", JSON.stringify(u));
     }
   };
@@ -120,6 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         token,
         isAuthenticated: !!user,
+        hasRole,
         login,
         logout,
         switchRoleQuick,

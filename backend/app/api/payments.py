@@ -7,6 +7,7 @@ from ..models.models import Payment, PaymentStatus
 from ..schemas.schemas import PaymentResponse, PaymentUpdateStatusRequest
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
+from ..services.audit_service import audit_service
 from ..core.websocket import manager
 
 router = APIRouter(prefix="/payments", tags=["Payment Tracking"])
@@ -79,6 +80,12 @@ async def update_payment_status(payment_id: int, payload: PaymentUpdateStatusReq
         "amount": p.amount,
         "timestamp": datetime.now().isoformat()
     })
+
+    audit_service.log_event(
+        db, action="PAYMENT_STATUS_UPDATED", entity_type="PAYMENT",
+        entity_id=str(p.id),
+        details=f"Payment {p.transaction_ref} updated to {p.status.value} (Amount: ₹{p.amount:,.2f}, UTR: {p.utr_number or 'N/A'})"
+    )
 
     return PaymentResponse(
         id=p.id,

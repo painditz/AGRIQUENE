@@ -12,6 +12,7 @@ from .farmers import get_current_farmer_user
 from ..services.eta_service import eta_service
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
+from ..services.audit_service import audit_service
 from ..core.websocket import manager
 
 router = APIRouter(prefix="/bookings", tags=["Slot Booking & Tokens"])
@@ -140,6 +141,12 @@ async def create_booking(
         "position": position,
         "timestamp": datetime.now().isoformat()
     })
+
+    audit_service.log_event(
+        db, action="BOOKING_CREATED", entity_type="BOOKING",
+        entity_id=str(booking.id), user_id=user.id,
+        details=f"Farmer {user.full_name} booked slot for {slot.date} ({slot.start_time}) at {centre.name} -> Token {token_display}"
+    )
 
     slot_time = f"{slot.start_time} - {slot.end_time}"
     return TokenResponse(

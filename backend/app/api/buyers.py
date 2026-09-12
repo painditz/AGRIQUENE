@@ -5,11 +5,17 @@ from typing import Dict, Any, Optional
 from ..db.session import get_db
 from ..models.models import (
     Buyer, ProcurementCentre, Token, TokenStatus,
-    Booking, ProcurementRecord, User
+    Booking, ProcurementRecord, User, UserRole
 )
 from ..core.websocket import manager
+from ..core.security import require_role
+from ..services.audit_service import audit_service
 
-router = APIRouter(prefix="/buyers", tags=["Buyer Dashboard"])
+router = APIRouter(
+    prefix="/buyers",
+    tags=["Buyer Dashboard"],
+    dependencies=[Depends(require_role(UserRole.BUYER, UserRole.ADMIN))]
+)
 
 @router.get("/dashboard")
 def get_buyer_dashboard(centre_id: Optional[int] = 1, db: Session = Depends(get_db)):
@@ -82,7 +88,8 @@ def get_buyer_dashboard(centre_id: Optional[int] = 1, db: Session = Depends(get_
 async def update_active_counters(
     centre_id: int = Body(..., embed=True),
     active_counters: int = Body(..., embed=True),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
 ):
     centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == centre_id).first()
     if not centre:
@@ -90,6 +97,12 @@ async def update_active_counters(
         
     centre.active_counters = max(1, min(centre.total_counters, active_counters))
     db.commit()
+
+    audit_service.log_event(
+        db, action="COUNTER_UPDATED", entity_type="CENTRE",
+        entity_id=str(centre.id), user_id=current_user.id,
+        details=f"User {current_user.full_name} updated active counters to {centre.active_counters} at {centre.name}"
+    )
 
     # Broadcast updated counters to all listening screens
     await manager.broadcast_to_centre(str(centre.id), {

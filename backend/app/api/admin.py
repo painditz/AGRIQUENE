@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -6,12 +6,20 @@ from ..db.session import get_db
 from ..models.models import (
     ProcurementCentre, Slot, Buyer, Farmer, User,
     Token, TokenStatus, Booking, ProcurementRecord, Payment,
-    CentreStatus, UserRole
+    CentreStatus, UserRole, AuditLog
 )
-from ..schemas.schemas import CentreResponse, SlotResponse
-from ..core.security import get_password_hash
+from ..schemas.schemas import (
+    CentreResponse, SlotResponse, AuditLogResponse,
+    CentreCreateRequest, CentreUpdateRequest, SlotCreateRequest
+)
+from ..core.security import get_password_hash, require_role
+from ..services.audit_service import audit_service
 
-router = APIRouter(prefix="/admin", tags=["Admin Management"])
+router = APIRouter(
+    prefix="/admin",
+    tags=["Admin Management"],
+    dependencies=[Depends(require_role(UserRole.ADMIN))]
+)
 
 @router.get("/dashboard")
 def get_admin_dashboard(db: Session = Depends(get_db)):
@@ -93,7 +101,8 @@ def create_buyer_admin(
     employee_id: str = Body(..., embed=True),
     centre_id: int = Body(..., embed=True),
     counter_number: int = Body(1, embed=True),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_role(UserRole.ADMIN))
 ):
     user = User(
         full_name=full_name,
@@ -116,35 +125,223 @@ def create_buyer_admin(
     db.commit()
     db.refresh(buyer)
 
+    audit_service.log_event(
+        db, action="BUYER_CREATED", entity_type="BUYER",
+        entity_id=str(buyer.id), user_id=current_admin.id,
+        details=f"Admin created buyer {full_name} ({employee_id}) assigned to centre #{centre_id}"
+    )
+
     return {"success": True, "message": f"Buyer {full_name} ({employee_id}) created successfully"}
 
 @router.post("/centres")
 def create_centre_admin(
-    name: str = Body(..., embed=True),
-    code: str = Body(..., embed=True),
-    address: str = Body(..., embed=True),
-    district: str = Body(..., embed=True),
-    state: str = Body(..., embed=True),
-    pin_code: str = Body(..., embed=True),
-    capacity_per_day: int = Body(150, embed=True),
-    active_counters: int = Body(4, embed=True),
-    db: Session = Depends(get_db)
+    payload: CentreCreateRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_role(UserRole.ADMIN))
 ):
     centre = ProcurementCentre(
-        name=name,
-        code=code,
-        address=address,
-        district=district,
-        state=state,
-        pin_code=pin_code,
-        latitude=28.6692,
-        longitude=77.4538,
-        capacity_per_day=capacity_per_day,
-        active_counters=active_counters,
-        total_counters=active_counters + 2,
-        status=CentreStatus.OPEN
+        name=payload.name,
+        code=payload.code,
+        address=payload.address,
+        district=payload.district,
+        state=payload.state,
+        pin_code=payload.pin_code,
+        latitude=payload.latitude or 28.6692,
+        longitude=payload.longitude or 77.4538,
+        contact_phone=payload.contact_phone or "0120-2839100",
+        capacity_per_day=payload.capacity_per_day,
+        active_counters=payload.active_counters,
+        total_counters=payload.total_counters or (payload.active_counters + 2),
+        avg_processing_time_min=payload.avg_processing_time_min or 8.0,
+        open_time=payload.open_time or "08:00 AM",
+        close_time=payload.close_time or "06:00 PM",
+        status=payload.status or CentreStatus.OPEN
     )
     db.add(centre)
     db.commit()
     db.refresh(centre)
-    return {"success": True, "message": f"Centre {name} created with ID {centre.id}"}
+
+    audit_service.log_event(
+        db, action="CENTRE_CREATED", entity_type="CENTRE",
+        entity_id=str(centre.id), user_id=current_admin.id,
+        details=f"Created Mandi centre {centre.name} ({centre.code}) with {centre.active_counters} counters"
+    )
+
+    return {"success": True, "message": f"Centre {centre.name} created with ID {centre.id}", "centre_id": centre.id}
+
+@router.put("/centres/{centre_id}")
+def update_centre_admin(
+    centre_id: int,
+    payload: CentreUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_role(UserRole.ADMIN))
+):
+    centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == centre_id).first()
+    if not centre:
+        raise HTTPException(status_code=404, detail="Centre not found")
+
+    if payload.name is not None:
+        centre.name = payload.name
+    if payload.address is not None:
+        centre.address = payload.address
+    if payload.capacity_per_day is not None:
+        centre.capacity_per_day = payload.capacity_per_day
+    if payload.active_counters is not None:
+        centre.active_counters = payload.active_counters
+    if payload.status is not None:
+        centre.status = payload.status
+    if payload.open_time is not None:
+        centre.open_time = payload.open_time
+    if payload.close_time is not None:
+        centre.close_time = payload.close_time
+
+    db.commit()
+    db.refresh(centre)
+
+    audit_service.log_event(
+        db, action="CENTRE_UPDATED", entity_type="CENTRE",
+        entity_id=str(centre.id), user_id=current_admin.id,
+        details=f"Admin updated centre {centre.name}: counters={centre.active_counters}, status={centre.status.value}"
+    )
+
+    return {"success": True, "message": f"Centre {centre.name} updated successfully"}
+
+# -------------------------------------------------------------
+# Slots Management
+# -------------------------------------------------------------
+@router.get("/slots")
+def list_slots_admin(
+    centre_id: Optional[int] = None,
+    date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Slot)
+    if centre_id:
+        query = query.filter(Slot.centre_id == centre_id)
+    if date:
+        query = query.filter(Slot.date == date)
+    slots = query.order_by(Slot.date.desc(), Slot.start_time.asc()).all()
+    
+    return [
+        {
+            "id": s.id,
+            "centre_id": s.centre_id,
+            "centre_name": s.centre.name if s.centre else "Unknown",
+            "date": s.date,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+            "capacity": s.capacity,
+            "booked_count": s.booked_count,
+            "available_count": max(0, s.capacity - s.booked_count),
+            "is_recommended": s.is_recommended,
+            "is_active": s.is_active
+        }
+        for s in slots
+    ]
+
+@router.post("/slots")
+def create_slot_admin(
+    payload: SlotCreateRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_role(UserRole.ADMIN))
+):
+    slot = Slot(
+        centre_id=payload.centre_id,
+        date=payload.date,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        capacity=payload.capacity,
+        booked_count=0,
+        is_recommended=payload.is_recommended,
+        is_active=True
+    )
+    db.add(slot)
+    db.commit()
+    db.refresh(slot)
+
+    audit_service.log_event(
+        db, action="SLOT_CREATED", entity_type="SLOT",
+        entity_id=str(slot.id), user_id=current_admin.id,
+        details=f"Created slot at centre #{payload.centre_id} for {payload.date} ({payload.start_time} - {payload.end_time})"
+    )
+
+    return {"success": True, "message": f"Slot created with ID {slot.id}"}
+
+# -------------------------------------------------------------
+# System Audit Logs (Requirement 25)
+# -------------------------------------------------------------
+@router.get("/audit-logs", response_model=List[AuditLogResponse])
+def get_audit_logs(
+    action: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    query = db.query(AuditLog)
+    if action:
+        query = query.filter(AuditLog.action == action)
+    if entity_type:
+        query = query.filter(AuditLog.entity_type == entity_type)
+        
+    logs = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+
+    results = []
+    for log in logs:
+        user_name = log.user.full_name if log.user else "System / Automated"
+        user_role = log.user.role.value if log.user else "SYSTEM"
+        results.append(AuditLogResponse(
+            id=log.id,
+            user_id=log.user_id,
+            user_name=user_name,
+            user_role=user_role,
+            action=log.action,
+            entity_type=log.entity_type,
+            entity_id=log.entity_id,
+            details=log.details,
+            ip_address=log.ip_address,
+            created_at=log.created_at
+        ))
+    return results
+
+# -------------------------------------------------------------
+# Token Oversight
+# -------------------------------------------------------------
+@router.get("/tokens")
+def list_tokens_admin(
+    centre_id: Optional[int] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Token).join(Farmer, Token.farmer_id == Farmer.id).join(User, Farmer.user_id == User.id)
+    if centre_id:
+        query = query.filter(Token.centre_id == centre_id)
+    if status:
+        query = query.filter(Token.status == status)
+    if search:
+        query = query.filter(
+            (User.full_name.ilike(f"%{search}%")) |
+            (User.mobile_number.ilike(f"%{search}%")) |
+            (Token.token_display.ilike(f"%{search}%"))
+        )
+
+    tokens = query.order_by(Token.id.desc()).limit(limit).all()
+    results = []
+    for t in tokens:
+        results.append({
+            "id": t.id,
+            "token_number": t.token_number,
+            "token_display": t.token_display,
+            "farmer_name": t.farmer.user.full_name if t.farmer else "Unknown",
+            "farmer_mobile": t.farmer.user.mobile_number if t.farmer else "",
+            "centre_id": t.centre_id,
+            "centre_name": t.centre.name if t.centre else "Unknown",
+            "status": t.status.value,
+            "current_position": t.current_position,
+            "crop": t.booking.crop_type if t.booking else "Wheat",
+            "quantity": t.booking.estimated_quantity_quintals if t.booking else 0.0,
+            "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        })
+    return results

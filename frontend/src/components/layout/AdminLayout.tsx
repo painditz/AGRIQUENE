@@ -23,6 +23,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: "Slot Scheduling", href: "/admin/slots", icon: Calendar },
     { name: "Mandi Staff / Buyers", href: "/admin/buyers", icon: UserCog },
     { name: "Farmer Registry", href: "/admin/farmers", icon: Users },
+    { name: "System Audit Logs", href: "/admin/audit-logs", icon: ShieldCheck, badge: "SIH-25" },
   ];
 
   return (

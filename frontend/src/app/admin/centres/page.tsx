@@ -37,17 +37,26 @@ export default function AdminCentresPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch("http://localhost:8000/api/admin/centres", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name, code, address, district, state, pin_code: pinCode,
-          capacity_per_day: capacity, active_counters: counters
-        })
+      await api.createCentre({
+        name,
+        code,
+        address,
+        district,
+        state,
+        pin_code: pinCode,
+        capacity_per_day: capacity,
+        active_counters: counters,
       });
       setShowAddModal(false);
+      setName("");
+      setCode("");
+      setAddress("");
+      setDistrict("");
+      setPinCode("");
       await loadCentres();
-    } catch {}
+    } catch (err) {
+      console.error("Failed to create centre", err);
+    }
   };
 
   return (

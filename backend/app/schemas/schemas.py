@@ -22,6 +22,11 @@ class StaffLoginRequest(BaseModel):
     identifier: str # Mobile number or Employee ID
     password: str
 
+class UnifiedLoginRequest(BaseModel):
+    identifier: str # Mobile number, Email, or Employee ID
+    password: Optional[str] = None
+    otp: Optional[str] = None
+
 class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -65,6 +70,8 @@ class FarmerProfileResponse(BaseModel):
     bank_account_masked: str
     ifsc_code: str
     preferred_crop: str
+    preferred_centre_id: Optional[int] = None
+    preferred_centre_name: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -295,3 +302,59 @@ class SMSLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# -------------------------------------------------------------
+# System Audit Logs (Requirement 25)
+# -------------------------------------------------------------
+class AuditLogResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    user_role: Optional[str] = None
+    action: str
+    entity_type: str
+    entity_id: Optional[str] = None
+    details: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# -------------------------------------------------------------
+# Admin Management Requests
+# -------------------------------------------------------------
+class CentreCreateRequest(BaseModel):
+    name: str
+    code: str
+    address: str
+    district: str
+    state: str
+    pin_code: str
+    latitude: Optional[float] = 28.6692
+    longitude: Optional[float] = 77.4538
+    contact_phone: Optional[str] = "0120-2839100"
+    capacity_per_day: int = 150
+    active_counters: int = 4
+    total_counters: Optional[int] = 6
+    avg_processing_time_min: Optional[float] = 8.0
+    open_time: Optional[str] = "08:00 AM"
+    close_time: Optional[str] = "06:00 PM"
+    status: Optional[CentreStatus] = CentreStatus.OPEN
+
+class CentreUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    capacity_per_day: Optional[int] = None
+    active_counters: Optional[int] = None
+    status: Optional[CentreStatus] = None
+    open_time: Optional[str] = None
+    close_time: Optional[str] = None
+
+class SlotCreateRequest(BaseModel):
+    centre_id: int
+    date: str
+    start_time: str
+    end_time: str
+    capacity: int = 30
+    is_recommended: bool = False

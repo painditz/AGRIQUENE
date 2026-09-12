@@ -11,6 +11,7 @@ from ..schemas.schemas import CentreQueueStatusResponse, QueueItem, QueueCallReq
 from ..services.eta_service import eta_service
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
+from ..services.audit_service import audit_service
 from ..core.websocket import manager
 
 router = APIRouter(prefix="/queue", tags=["Queue Management"])
@@ -221,6 +222,12 @@ async def call_next_token(payload: QueueCallRequest, centre_id: Optional[int] = 
         "total_waiting": len(remaining_waiting)
     })
 
+    audit_service.log_event(
+        db, action="TOKEN_CALLED", entity_type="TOKEN",
+        entity_id=str(target_token.id),
+        details=f"Token {target_token.token_display} called to Counter #{payload.counter_number} at {centre.name}"
+    )
+
     return {
         "success": True,
         "message": f"Token {target_token.token_display} called at Counter #{payload.counter_number}",
@@ -256,6 +263,12 @@ async def mark_farmer_arrived(token_id: int, db: Session = Depends(get_db)):
         "timestamp": datetime.now().isoformat()
     })
 
+    audit_service.log_event(
+        db, action="TOKEN_ARRIVED", entity_type="TOKEN",
+        entity_id=str(token.id),
+        details=f"Token {token.token_display} marked arrived at {token.centre.name}"
+    )
+
     return {"success": True, "message": f"Token {token.token_display} marked as arrived at centre gate."}
 
 @router.post("/{token_id}/processing")
@@ -275,6 +288,12 @@ async def start_token_processing(token_id: int, db: Session = Depends(get_db)):
         "token_display": token.token_display,
         "timestamp": datetime.now().isoformat()
     })
+
+    audit_service.log_event(
+        db, action="TOKEN_PROCESSING", entity_type="TOKEN",
+        entity_id=str(token.id),
+        details=f"Token {token.token_display} processing started on weighbridge"
+    )
 
     return {"success": True, "message": f"Token {token.token_display} is now being processed on weighbridge."}
 
@@ -318,4 +337,10 @@ async def skip_token(token_id: int, db: Session = Depends(get_db)):
         "total_waiting": len(remaining_waiting)
     })
 
-    return {"success": True, "message": f"Token {token.token_display} skipped / marked absent.", "remaining_waiting": len(remaining_waiting)}
+    audit_service.log_event(
+        db, action="TOKEN_SKIPPED", entity_type="TOKEN",
+        entity_id=str(token.id),
+        details=f"Token {token.token_display} skipped by operator (unattended when called)"
+    )
+
+    return {"success": True, "message": f"Token {token.token_display} skipped and removed from active queue.", "remaining_waiting": len(remaining_waiting)}
