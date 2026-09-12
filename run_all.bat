@@ -1,7 +1,7 @@
 @echo off
 TITLE AGRIQUENE Launcher - Smart India Hackathon 2026
 echo =====================================================================
-echo           AGRIQUENE - Smart Procurement Queue & AI ETA System
+echo           AGRIQUENE - Smart Procurement Queue and AI ETA System
 echo =====================================================================
 echo.
 
@@ -23,35 +23,18 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-echo [1/4] Installing Python Backend dependencies...
-cd backend
-pip install -r requirements.txt
-if %errorlevel% neq 0 (
-    echo [WARNING] Pip install had issues. Continuing anyway...
-)
-cd ..
+echo.
+echo [1/2] Launching FastAPI Backend on http://localhost:8000 ...
+start "AGRIQUENE - Backend (Port 8000)" cmd /k "cd /d "%~dp0backend" && call start.bat"
 
 echo.
-echo [2/4] Installing Frontend dependencies...
-cd frontend
-call npm install
-if %errorlevel% neq 0 (
-    echo [WARNING] npm install had issues. Continuing anyway...
-)
-cd ..
-
-echo.
-echo [3/4] Launching FastAPI Backend on http://localhost:8000 ...
-start "AGRIQUENE - Backend (Port 8000)" cmd /k "cd backend && python run.py"
-
-echo.
-echo [4/4] Launching Next.js Frontend on http://localhost:3000 ...
-start "AGRIQUENE - Frontend (Port 3000)" cmd /k "cd frontend && npm run dev"
+echo [2/2] Launching Next.js Frontend on http://localhost:3000 ...
+start "AGRIQUENE - Frontend (Port 3000)" cmd /k "cd /d "%~dp0frontend" && call start.bat"
 
 echo.
 echo =====================================================================
-echo  AGRIQUENE is starting!
-echo  - Frontend Portal: http://localhost:3000
+echo  AGRIQUENE services launched successfully!
+echo  - Frontend Portal:  http://localhost:3000
 echo  - Backend API Docs: http://localhost:8000/docs
 echo =====================================================================
 echo.
