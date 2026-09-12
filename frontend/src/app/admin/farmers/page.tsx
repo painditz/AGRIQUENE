@@ -4,13 +4,19 @@ import React, { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { api } from "@/lib/api";
 import { Users, Search, RefreshCw } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function AdminFarmersPage() {
+  const { user } = useAuth();
   const [farmers, setFarmers] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   const loadFarmers = async (query?: string) => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await api.getAdminFarmers(query);
@@ -21,8 +27,10 @@ export default function AdminFarmersPage() {
   };
 
   useEffect(() => {
-    loadFarmers();
-  }, []);
+    if (user && user.role === "ADMIN") {
+      loadFarmers();
+    }
+  }, [user]);
 
   return (
     <AdminLayout>

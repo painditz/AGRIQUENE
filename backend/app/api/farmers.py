@@ -10,7 +10,7 @@ from ..models.models import (
 )
 from ..schemas.schemas import (
     FarmerRegisterRequest, FarmerProfileResponse,
-    TokenResponse, ProcurementResponse, PaymentResponse
+    TokenResponse, ProcurementResponse, PaymentResponse, BankDetailsUpdateRequest
 )
 from ..core.security import get_current_user
 from ..models.models import UserRole
@@ -28,14 +28,14 @@ def get_current_farmer_user(user: User = Depends(get_current_user)) -> User:
 def get_farmer_profile(user: User = Depends(get_current_farmer_user), db: Session = Depends(get_db)):
     profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
     if not profile:
-        # Create empty profile if none
         profile = Farmer(
             user_id=user.id,
-            district="Ghaziabad",
-            state="Uttar Pradesh",
+            district="National Capital Region",
+            state="Delhi",
             land_acres=2.5,
-            bank_account_masked="XXXX-XXXX-4921",
-            ifsc_code="SBIN0001234",
+            bank_account_masked=None,
+            ifsc_code=None,
+            bank_name=None,
             preferred_crop="Wheat"
         )
         db.add(profile)
@@ -56,10 +56,116 @@ def get_farmer_profile(user: User = Depends(get_current_farmer_user), db: Sessio
         pin_code=profile.pin_code,
         land_acres=profile.land_acres,
         bank_account_masked=profile.bank_account_masked,
+        bank_name=profile.bank_name,
         ifsc_code=profile.ifsc_code,
         preferred_crop=profile.preferred_crop,
         preferred_centre_id=profile.preferred_centre_id,
         preferred_centre_name=profile.preferred_centre.name if profile.preferred_centre else None,
+        created_at=profile.created_at
+    )
+
+@router.put("/bank-details", response_model=FarmerProfileResponse)
+def update_farmer_bank_details(
+    payload: BankDetailsUpdateRequest,
+    user: User = Depends(get_current_farmer_user),
+    db: Session = Depends(get_db)
+):
+    profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
+    if not profile:
+        profile = Farmer(user_id=user.id, district="General", state="India")
+        db.add(profile)
+        db.flush()
+
+    clean_acc = payload.account_number.strip().replace(" ", "").replace("-", "")
+    if len(clean_acc) < 4:
+        raise HTTPException(status_code=400, detail="Bank account number must be at least 4 digits.")
+
+    # Secure masking: only last 4 digits visible
+    masked = f"•••• •••• {clean_acc[-4:]}"
+    profile.bank_account_number = clean_acc
+    profile.bank_account_masked = masked
+    profile.bank_name = payload.bank_name.strip()
+    profile.ifsc_code = payload.ifsc_code.strip().upper()
+    db.commit()
+    db.refresh(profile)
+
+    audit_service.log_event(
+        db, action="FARMER_BANK_DETAILS_UPDATED", entity_type="FARMER",
+        entity_id=str(profile.id), user_id=user.id,
+        details=f"Farmer {user.full_name} updated bank account: {profile.bank_name} ({masked})"
+    )
+
+    return FarmerProfileResponse(
+        id=profile.id,
+        user_id=user.id,
+        full_name=user.full_name,
+        mobile_number=user.mobile_number,
+        farmer_id_card=profile.farmer_id_card,
+        father_name=profile.father_name,
+        address=profile.address,
+        village=profile.village,
+        district=profile.district,
+        state=profile.state,
+        pin_code=profile.pin_code,
+        land_acres=profile.land_acres,
+        bank_account_masked=profile.bank_account_masked,
+        bank_name=profile.bank_name,
+        ifsc_code=profile.ifsc_code,
+        preferred_crop=profile.preferred_crop,
+        preferred_centre_id=profile.preferred_centre_id,
+        preferred_centre_name=profile.preferred_centre.name if profile.preferred_centre else None,
+        created_at=profile.created_at
+    )
+
+from pydantic import BaseModel
+
+class UpdatePreferredCentreRequest(BaseModel):
+    centre_id: int
+
+@router.put("/preferred-centre", response_model=FarmerProfileResponse)
+def update_preferred_centre(
+    payload: UpdatePreferredCentreRequest,
+    user: User = Depends(get_current_farmer_user),
+    db: Session = Depends(get_db)
+):
+    profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
+    if not profile:
+        profile = Farmer(user_id=user.id, district="General", state="India")
+        db.add(profile)
+        db.flush()
+
+    centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == payload.centre_id).first()
+    if not centre:
+        raise HTTPException(status_code=404, detail="Selected procurement centre not found.")
+
+    profile.preferred_centre_id = centre.id
+    db.commit()
+    db.refresh(profile)
+
+    audit_service.log_event(
+        db, action="FARMER_CENTRE_UPDATED", entity_type="FARMER",
+        entity_id=str(profile.id), user_id=user.id,
+        details=f"Farmer {user.full_name} updated preferred centre to {centre.name} (ID: {centre.id})"
+    )
+
+    return FarmerProfileResponse(
+        id=profile.id,
+        user_id=user.id,
+        full_name=user.full_name,
+        mobile_number=user.mobile_number,
+        farmer_id_card=profile.farmer_id_card,
+        father_name=profile.father_name,
+        address=profile.address,
+        village=profile.village,
+        district=profile.district,
+        state=profile.state,
+        pin_code=profile.pin_code,
+        land_acres=profile.land_acres,
+        bank_account_masked=profile.bank_account_masked,
+        ifsc_code=profile.ifsc_code,
+        preferred_crop=profile.preferred_crop,
+        preferred_centre_id=centre.id,
+        preferred_centre_name=centre.name,
         created_at=profile.created_at
     )
 
@@ -314,21 +420,37 @@ def get_farmer_payments(user: User = Depends(get_current_farmer_user), db: Sessi
     results = []
     for p in payments:
         proc = p.procurement
+        crop_display = proc.crop_name if proc else (p.purpose or "Weighbridge / Booking Service")
+        weight_display = proc.net_weight_quintals if proc else 0.0
+        receipt_display = proc.receipt_number if proc else p.transaction_ref
+        bank_masked = p.bank_account_masked or farmer.bank_account_masked
+        bank_display = p.bank_name or farmer.bank_name
+
         results.append(PaymentResponse(
             id=p.id,
             procurement_id=p.procurement_id,
-            receipt_number=proc.receipt_number if proc else "N/A",
+            booking_id=p.booking_id,
+            receipt_number=receipt_display,
             farmer_id=farmer.id,
             farmer_name=user.full_name,
-            crop=proc.crop_name if proc else "Wheat",
-            net_weight_quintals=proc.net_weight_quintals if proc else 40.0,
+            crop=crop_display,
+            net_weight_quintals=weight_display,
             amount=p.amount,
+            currency=p.currency or "INR",
+            purpose=p.purpose,
             transaction_ref=p.transaction_ref,
             utr_number=p.utr_number,
-            bank_account_masked=p.bank_account_masked,
-            bank_name=p.bank_name,
+            bank_account_masked=bank_masked,
+            bank_name=bank_display,
             payment_mode=p.payment_mode,
             status=p.status,
+            razorpay_order_id=p.razorpay_order_id,
+            razorpay_payment_id=p.razorpay_payment_id,
+            failure_reason=p.failure_reason,
+            refund_id=p.refund_id,
+            refund_amount=p.refund_amount,
+            refund_reason=p.refund_reason,
+            verified_at=p.verified_at,
             initiated_at=p.initiated_at,
             completed_at=p.completed_at
         ))

@@ -8,9 +8,11 @@ import { api, CentreItem, SlotItem, TokenItem, CropItem } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useLanguage } from "@/context/LanguageContext";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
+import { ChangeMandiModal } from "@/components/mandi/ChangeMandiModal";
 import {
   CalendarPlus, Building2, Wheat, Scale, Calendar,
-  Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Sparkles, MapPin
+  Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Sparkles, MapPin, Search
 } from "lucide-react";
 
 function BookSlotContent() {
@@ -18,11 +20,13 @@ function BookSlotContent() {
   const searchParams = useSearchParams();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const preselectedCentre = searchParams.get("centre");
 
   const [centres, setCentres] = useState<CentreItem[]>([]);
   const [selectedCentreId, setSelectedCentreId] = useState<number | null>(preselectedCentre ? parseInt(preselectedCentre) : null);
+  const [showMandiModal, setShowMandiModal] = useState(false);
   const [crops, setCrops] = useState<CropItem[]>([]);
   const [selectedCrop, setSelectedCrop] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(45.0);
@@ -44,10 +48,19 @@ function BookSlotContent() {
           api.getCrops(),
         ]);
         setCentres(centresData);
+        let chosenId: number | null = null;
         if (preselectedCentre) {
-          setSelectedCentreId(parseInt(preselectedCentre));
-        } else if (centresData.length > 0) {
-          setSelectedCentreId((prev) => prev ?? centresData[0].id);
+          chosenId = parseInt(preselectedCentre);
+        } else if (user?.centreId) {
+          chosenId = user.centreId;
+        } else {
+          const prof = await api.getFarmerProfile().catch(() => null);
+          if (prof?.preferred_centre_id) {
+            chosenId = prof.preferred_centre_id;
+          }
+        }
+        if (chosenId) {
+          setSelectedCentreId(chosenId);
         }
         setCrops(cropsData);
         if (cropsData.length > 0) {
@@ -58,7 +71,15 @@ function BookSlotContent() {
       }
     }
     fetchCentresAndCrops();
-  }, [preselectedCentre]);
+
+    const handleMandiChanged = (e: any) => {
+      if (e?.detail?.id) {
+        setSelectedCentreId(e.detail.id);
+      }
+    };
+    window.addEventListener("mandi-changed", handleMandiChanged);
+    return () => window.removeEventListener("mandi-changed", handleMandiChanged);
+  }, [preselectedCentre, user?.centreId]);
 
   // Load Slots when centre or date changes
   useEffect(() => {
@@ -158,42 +179,63 @@ function BookSlotContent() {
         {bookingStep === 1 && (
           <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-6 shadow-sm space-y-6">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                1. Choose Procurement Centre (Mandi)
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {centres.map((c) => (
-                  <label
-                    key={c.id}
-                    className={`flex items-start justify-between p-3.5 rounded-md border text-xs cursor-pointer transition ${
-                      selectedCentreId === c.id
-                        ? "bg-blue-50 border-2 border-[#0B2545] text-[#0B2545] font-bold shadow-sm"
-                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <input
-                        type="radio"
-                        name="centre"
-                        checked={selectedCentreId === c.id}
-                        onChange={() => setSelectedCentreId(c.id)}
-                        className="mt-1"
-                      />
-                      <div>
-                        <p className="font-bold text-sm">{c.name}</p>
-                        <p className="text-[11px] text-slate-500 font-normal mt-0.5 flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-[#B91C1C]" />
-                          <span>{c.district}, {c.state} (~{c.distance_km} km away)</span>
-                        </p>
-                        <p className="text-[10px] text-slate-600 mt-1.5 font-mono">
-                          Live Queue: <strong className="text-[#0B2545]">{c.current_waiting_count} waiting</strong> | Est. Wait: <strong className="text-[#B91C1C]">{c.estimated_wait_min} min</strong>
-                        </p>
-                      </div>
-                    </div>
-                    <StatusBadge status={c.status} />
-                  </label>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase">
+                  1. Procurement Centre (Mandi)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowMandiModal(true)}
+                  className="text-xs text-[#0B2545] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Change Mandi</span>
+                </button>
               </div>
+
+              {centres.find((c) => c.id === selectedCentreId) ? (
+                (() => {
+                  const c = centres.find((x) => x.id === selectedCentreId)!;
+                  return (
+                    <div className="bg-blue-50/70 border-2 border-[#0B2545] rounded-md p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-sm text-[#0B2545]">{c.name}</h4>
+                          <StatusBadge status={c.status} />
+                        </div>
+                        <p className="text-xs text-slate-600 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#B91C1C] flex-shrink-0" />
+                          <span>{c.address} · {c.district}, {c.state}</span>
+                        </p>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-600 font-medium pt-1">
+                          <span>Line: <strong>{c.current_waiting_count} waiting</strong></span>
+                          <span>·</span>
+                          <span>Wait: <strong>~{c.estimated_wait_min}m</strong></span>
+                          <span>·</span>
+                          <span>Gate: <strong>{c.open_time} – {c.close_time}</strong></span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowMandiModal(true)}
+                        className="btn-gov-outline text-xs py-2 px-3.5 font-bold flex-shrink-0 flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        <span>Change Mandi</span>
+                      </button>
+                    </div>
+                  );
+                })()
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowMandiModal(true)}
+                  className="w-full border-2 border-dashed border-slate-300 rounded-md p-5 text-center text-xs font-bold text-[#0B2545] hover:bg-slate-50 cursor-pointer"
+                >
+                  + Click to choose your Procurement Centre (Mandi)
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
@@ -522,6 +564,15 @@ function BookSlotContent() {
             </div>
           </div>
         )}
+
+        <ChangeMandiModal
+          isOpen={showMandiModal}
+          onClose={() => setShowMandiModal(false)}
+          currentSelectedId={selectedCentreId}
+          onSelectCentre={(c) => {
+            setSelectedCentreId(c.id);
+          }}
+        />
       </div>
     </FarmerLayout>
   );

@@ -6,7 +6,10 @@ import { api, CentreItem } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Building2, Plus, RefreshCw, CheckCircle2 } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
+
 export default function AdminCentresPage() {
+  const { user } = useAuth();
   const [centres, setCentres] = useState<CentreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -22,6 +25,10 @@ export default function AdminCentresPage() {
   const [counters, setCounters] = useState(4);
 
   const loadCentres = async () => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     try {
       const data = await api.getCentres();
       setCentres(data);

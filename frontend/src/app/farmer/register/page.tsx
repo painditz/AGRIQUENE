@@ -24,13 +24,11 @@ export default function FarmerRegisterPage() {
   const [fullName, setFullName] = useState(
     user?.fullName && user.fullName !== "New Farmer" ? user.fullName : ""
   );
-  const [farmerIdCard, setFarmerIdCard] = useState(
-    user?.mobileNumber === "9876543210" ? "PMK-UP-2026-9481" : ""
-  );
+  const [farmerIdCard, setFarmerIdCard] = useState("");
   const [fatherName, setFatherName] = useState("");
   const [village, setVillage] = useState("");
-  const [district, setDistrict] = useState("Ghaziabad");
-  const [state, setState] = useState("Uttar Pradesh");
+  const [district, setDistrict] = useState("");
+  const [state, setState] = useState("");
   const [pinCode, setPinCode] = useState("");
 
   // Form State - Step 2: Crop & Land

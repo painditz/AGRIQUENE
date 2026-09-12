@@ -112,3 +112,12 @@ def require_role(*allowed_roles: UserRole):
             )
         return current_user
     return role_guard
+
+def get_current_farmer_user(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role not in [UserRole.FARMER, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Farmer credentials required."
+        )
+    return current_user
+

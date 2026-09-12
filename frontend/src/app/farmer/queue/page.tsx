@@ -19,7 +19,7 @@ import {
 export default function FarmerLiveQueuePage() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { lastEvent, connectionStatus, playAlertSound } = useQueueSocket();
+  const { lastEvent, connectionStatus, playAlertSound, setActiveCentreId } = useQueueSocket();
 
   const [token, setToken] = useState<TokenItem | null>(null);
   const [queueStatus, setQueueStatus] = useState<CentreQueueStatus | null>(null);
@@ -32,18 +32,24 @@ export default function FarmerLiveQueuePage() {
       const tokenData = await api.getFarmerCurrentToken().catch(() => null);
       if (tokenData) {
         setToken(tokenData);
+        setActiveCentreId(tokenData.centre_id);
         const qData = await api.getCentreQueue(tokenData.centre_id).catch(() => null);
         setQueueStatus(qData);
       } else {
         setToken(null);
-        setQueueStatus(null);
+        // Load target mandi queue for observation even before booking
+        const prof = await api.getFarmerProfile().catch(() => null);
+        const targetId = prof?.preferred_centre_id || user?.centreId || 1;
+        setActiveCentreId(targetId);
+        const qData = await api.getCentreQueue(targetId).catch(() => null);
+        setQueueStatus(qData);
       }
     } catch {
       // Fallback gracefully
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setActiveCentreId, user]);
 
   useEffect(() => {
     loadData();
@@ -58,6 +64,15 @@ export default function FarmerLiveQueuePage() {
       }
     }
   }, [lastEvent, loadData, soundAlertEnabled, playAlertSound]);
+
+  // Listen for global mandi change event
+  useEffect(() => {
+    const handleMandiChanged = () => {
+      loadData();
+    };
+    window.addEventListener("mandi-changed", handleMandiChanged);
+    return () => window.removeEventListener("mandi-changed", handleMandiChanged);
+  }, [loadData]);
 
   const isCalled = token?.status === "CALLED";
 

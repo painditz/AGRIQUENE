@@ -33,8 +33,11 @@ class Settings:
     SMS_GATEWAY_PROVIDER: str = os.getenv("SMS_GATEWAY_PROVIDER", "mock")
     SMS_API_KEY: str = os.getenv("SMS_API_KEY", "")
     
-    # Payment Gateway
-    PAYMENT_GATEWAY_PROVIDER: str = os.getenv("PAYMENT_GATEWAY_PROVIDER", "mock_pfms_dbt")
+    # Payment Gateway / Razorpay
+    PAYMENT_GATEWAY_PROVIDER: str = os.getenv("PAYMENT_GATEWAY_PROVIDER", "razorpay_dbt")
+    RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "rzp_test_aqriquene_demo")
+    RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "aqriquene_test_secret_2026")
+    RAZORPAY_TEST_MODE: bool = os.getenv("RAZORPAY_TEST_MODE", "true").lower() == "true"
     
     # Map API
     MAPS_API_KEY: str = os.getenv("MAPS_API_KEY", "")

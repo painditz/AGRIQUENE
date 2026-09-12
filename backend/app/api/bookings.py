@@ -55,7 +55,8 @@ async def create_booking(
     )
     position = waiting_count + 1
 
-    booking_ref = f"AGQ-2026-{centre.code.split('-')[-2]}-{next_token_num}"
+    clean_code = centre.code.split('-')[-2] if ('-' in centre.code and len(centre.code.split('-')) >= 2) else (centre.code[:4].upper() if centre.code else "MNDI")
+    booking_ref = f"AGQ-2026-{clean_code}-{next_token_num}"
     
     # Create booking record
     booking = Booking(
@@ -133,14 +134,16 @@ async def create_booking(
     )
 
     # Broadcast new queue entry via WebSockets
-    await manager.broadcast_to_centre(str(centre.id), {
+    booking_event = {
         "type": "NEW_BOOKING",
         "centre_id": centre.id,
         "token_number": next_token_num,
         "token_display": token_display,
         "position": position,
         "timestamp": datetime.now().isoformat()
-    })
+    }
+    await manager.broadcast_to_centre(str(centre.id), booking_event)
+    await manager.broadcast_global(booking_event)
 
     audit_service.log_event(
         db, action="BOOKING_CREATED", entity_type="BOOKING",

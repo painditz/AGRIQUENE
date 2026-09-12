@@ -29,9 +29,30 @@ class TokenStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 class PaymentStatus(str, enum.Enum):
+    CREATED = "CREATED"
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
+    AUTHORIZED = "AUTHORIZED"
+    CAPTURED = "CAPTURED"
+    SUCCESS = "SUCCESS"
     COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    REFUNDED = "REFUNDED"
+    CANCELLED = "CANCELLED"
+    PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED"
+
+class PayoutStatus(str, enum.Enum):
+    CREATED = "CREATED"
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    PROCESSED = "PROCESSED"
+    FAILED = "FAILED"
+    REVERSED = "REVERSED"
+
+class RefundStatus(str, enum.Enum):
+    REQUESTED = "REQUESTED"
+    PROCESSING = "PROCESSING"
+    PROCESSED = "PROCESSED"
     FAILED = "FAILED"
 
 class CentreStatus(str, enum.Enum):
@@ -74,8 +95,10 @@ class Farmer(Base):
     state = Column(String(100), nullable=False)
     pin_code = Column(String(10), nullable=True)
     land_acres = Column(Float, default=2.5)
-    bank_account_masked = Column(String(30), default="XXXX-XXXX-4921")
-    ifsc_code = Column(String(20), default="SBIN0001234")
+    bank_account_masked = Column(String(30), nullable=True, default=None)
+    ifsc_code = Column(String(20), nullable=True, default=None)
+    bank_name = Column(String(100), nullable=True, default=None)
+    bank_account_number = Column(String(50), nullable=True, default=None)
     preferred_crop = Column(String(50), default="Wheat")
     preferred_centre_id = Column(Integer, ForeignKey("procurement_centres.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -86,6 +109,7 @@ class Farmer(Base):
     tokens = relationship("Token", back_populates="farmer", cascade="all, delete-orphan")
     procurements = relationship("ProcurementRecord", back_populates="farmer")
     payments = relationship("Payment", back_populates="farmer")
+    payouts = relationship("Payout", back_populates="farmer", cascade="all, delete-orphan")
 
 class Buyer(Base):
     __tablename__ = "buyers"
@@ -269,26 +293,64 @@ class ProcurementRecord(Base):
     
     token = relationship("Token", back_populates="procurement_record")
     farmer = relationship("Farmer", back_populates="procurements")
+    centre = relationship("ProcurementCentre")
     payment = relationship("Payment", back_populates="procurement", uselist=False, cascade="all, delete-orphan")
+    payout = relationship("Payout", back_populates="procurement", uselist=False, cascade="all, delete-orphan")
 
 class Payment(Base):
     __tablename__ = "payments"
     
     id = Column(Integer, primary_key=True, index=True)
-    procurement_id = Column(Integer, ForeignKey("procurement_records.id"), unique=True, nullable=False)
+    procurement_id = Column(Integer, ForeignKey("procurement_records.id"), unique=True, nullable=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True)
     farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=False)
     transaction_ref = Column(String(100), unique=True, index=True, nullable=False)
     amount = Column(Float, nullable=False)
+    currency = Column(String(10), default="INR")
+    purpose = Column(String(150), default="MSP Procurement DBT Settlement")
     payment_mode = Column(String(50), default="Direct Benefit Transfer (PFMS / Aadhaar DBT)")
     status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PROCESSING, index=True)
-    bank_account_masked = Column(String(30), default="XXXX-XXXX-4921")
-    bank_name = Column(String(100), default="State Bank of India")
+    razorpay_order_id = Column(String(100), unique=True, index=True, nullable=True)
+    razorpay_payment_id = Column(String(100), index=True, nullable=True)
+    razorpay_signature = Column(String(255), nullable=True)
+    bank_account_masked = Column(String(30), nullable=True)
+    bank_name = Column(String(100), nullable=True)
     utr_number = Column(String(50), nullable=True)
+    failure_reason = Column(Text, nullable=True)
+    refund_id = Column(String(100), nullable=True)
+    refund_amount = Column(Float, nullable=True)
+    refund_reason = Column(Text, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
     initiated_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
     
     procurement = relationship("ProcurementRecord", back_populates="payment")
+    booking = relationship("Booking")
     farmer = relationship("Farmer", back_populates="payments")
+
+class Payout(Base):
+    __tablename__ = "payouts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    procurement_id = Column(Integer, ForeignKey("procurement_records.id"), unique=True, nullable=False)
+    farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    currency = Column(String(10), default="INR")
+    payout_ref = Column(String(100), unique=True, index=True, nullable=False)
+    utr_number = Column(String(100), nullable=True)
+    status = Column(SQLEnum(PayoutStatus), default=PayoutStatus.CREATED, index=True)
+    bank_account_masked = Column(String(30), nullable=True)
+    bank_name = Column(String(100), nullable=True)
+    ifsc_code = Column(String(20), nullable=True)
+    authorized_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    authorized_at = Column(DateTime, nullable=True)
+    processed_at = Column(DateTime, nullable=True)
+    failure_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    procurement = relationship("ProcurementRecord", back_populates="payout")
+    farmer = relationship("Farmer", back_populates="payouts")
+    authorized_by = relationship("User")
 
 class Notification(Base):
     __tablename__ = "notifications"

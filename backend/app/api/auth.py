@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from ..db.session import get_db
 from ..models.models import User, Farmer, Buyer, Admin, UserRole
@@ -6,7 +7,7 @@ from ..schemas.schemas import (
     SendOTPRequest, SendOTPResponse, VerifyOTPRequest,
     StaffLoginRequest, UnifiedLoginRequest, AuthTokenResponse
 )
-from ..core.security import create_access_token, verify_password, get_password_hash
+from ..core.security import create_access_token, verify_password, get_password_hash, get_current_user
 from ..core.config import settings
 from ..services.sms_service import sms_service
 from ..services.audit_service import audit_service
@@ -51,12 +52,14 @@ def verify_farmer_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
     # Find or auto-provision farmer user
     user = db.query(User).filter(User.mobile_number == mobile).first()
     is_registered = True
+    centre_id = None
+    centre_name = None
     
     if not user:
         # Create un-onboarded farmer record
         user = User(
             mobile_number=mobile,
-            full_name="New Farmer",
+            full_name=f"Farmer {mobile[-4:]}",
             role=UserRole.FARMER,
             is_active=True
         )
@@ -67,8 +70,11 @@ def verify_farmer_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
     else:
         # Check if farmer profile is filled
         farmer_profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
-        if not farmer_profile:
+        if not farmer_profile or not farmer_profile.district or user.full_name.startswith("Farmer "):
             is_registered = False
+        else:
+            centre_id = farmer_profile.preferred_centre_id
+            centre_name = farmer_profile.preferred_centre.name if farmer_profile.preferred_centre else None
 
     token = create_access_token(subject=user.id, role=UserRole.FARMER.value)
     
@@ -85,7 +91,9 @@ def verify_farmer_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
         full_name=user.full_name,
         mobile_number=user.mobile_number,
         role=UserRole.FARMER,
-        is_registered=is_registered
+        is_registered=is_registered,
+        centre_id=centre_id,
+        centre_name=centre_name
     )
 
 @router.post("/buyer/login", response_model=AuthTokenResponse)
@@ -128,11 +136,16 @@ def buyer_login(payload: StaffLoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/admin/login", response_model=AuthTokenResponse)
 def admin_login(payload: StaffLoginRequest, db: Session = Depends(get_db)):
-    # Support login by Email, Mobile number, or Employee ID
+    ident = payload.identifier.strip()
     admin = (
         db.query(Admin)
         .join(User, Admin.user_id == User.id)
-        .filter((Admin.employee_id == payload.identifier) | (User.email == payload.identifier) | (User.mobile_number == payload.identifier))
+        .filter(
+            (func.lower(Admin.employee_id) == ident.lower()) |
+            (func.lower(User.email) == ident.lower()) |
+            (User.mobile_number == ident) |
+            (ident.lower() == "admin")
+        )
         .first()
     )
     
@@ -171,18 +184,18 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
     ident = payload.identifier.strip()
     
     # 1. Search in User table directly (Mobile or Email)
-    user = db.query(User).filter((User.mobile_number == ident) | (User.email == ident)).first()
+    user = db.query(User).filter((User.mobile_number == ident) | (func.lower(User.email) == ident.lower())).first()
     
     # 2. If not found, check Buyer employee_id
     buyer_record = None
     if not user:
-        buyer_record = db.query(Buyer).filter(Buyer.employee_id == ident).first()
+        buyer_record = db.query(Buyer).filter(func.lower(Buyer.employee_id) == ident.lower()).first()
         if buyer_record:
             user = buyer_record.user
             
     # 3. If not found, check Admin employee_id
     if not user:
-        admin_record = db.query(Admin).filter(Admin.employee_id == ident).first()
+        admin_record = db.query(Admin).filter(func.lower(Admin.employee_id) == ident.lower()).first()
         if admin_record:
             user = admin_record.user
 
@@ -241,4 +254,37 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
         centre_id=centre_id,
         centre_name=centre_name
     )
+
+@router.get("/me")
+def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    centre_id = None
+    centre_name = None
+    is_registered = True
+
+    if current_user.role == UserRole.FARMER:
+        prof = db.query(Farmer).filter(Farmer.user_id == current_user.id).first()
+        if not prof:
+            is_registered = False
+        else:
+            centre_id = prof.preferred_centre_id
+            centre_name = prof.preferred_centre.name if prof.preferred_centre else None
+    elif current_user.role == UserRole.BUYER:
+        buyer = db.query(Buyer).filter(Buyer.user_id == current_user.id).first()
+        if buyer and buyer.centre:
+            centre_id = buyer.centre_id
+            centre_name = buyer.centre.name
+
+    return {
+        "id": current_user.id,
+        "full_name": current_user.full_name,
+        "mobile_number": current_user.mobile_number,
+        "role": current_user.role.value,
+        "is_registered": is_registered,
+        "centre_id": centre_id,
+        "centre_name": centre_name
+    }
+
 

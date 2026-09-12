@@ -122,12 +122,19 @@ export default function CentresPage() {
             onChange={(e) => setSelectedState(e.target.value)}
             className="border border-slate-300 rounded px-2.5 py-2 text-xs font-medium bg-white outline-none"
           >
-            <option value="All">All Northern / Central States</option>
+            <option value="All">All States across India</option>
+            <option value="Delhi">Delhi</option>
             <option value="Uttar Pradesh">Uttar Pradesh</option>
             <option value="Haryana">Haryana</option>
-            <option value="Rajasthan">Rajasthan</option>
             <option value="Punjab">Punjab</option>
+            <option value="Rajasthan">Rajasthan</option>
             <option value="Madhya Pradesh">Madhya Pradesh</option>
+            <option value="Maharashtra">Maharashtra</option>
+            <option value="Gujarat">Gujarat</option>
+            <option value="Karnataka">Karnataka</option>
+            <option value="Andhra Pradesh">Andhra Pradesh</option>
+            <option value="Bihar">Bihar</option>
+            <option value="West Bengal">West Bengal</option>
           </select>
         </div>
       </div>
@@ -250,12 +257,12 @@ export default function CentresPage() {
               <p>No centres selected for comparison yet.</p>
               <button
                 onClick={() => {
-                  setSelectedCentresForCompare([1, 2, 3]);
+                  setSelectedCentresForCompare(centres.slice(0, 3).map((c) => c.id));
                   setActiveTab("compare");
                 }}
                 className="text-[#0B2545] font-bold underline"
               >
-                Compare Top 3 Default Mandis
+                Compare Top 3 Nearby Mandis
               </button>
             </div>
           ) : (
@@ -359,16 +366,27 @@ export default function CentresPage() {
             />
           </div>
 
-          <LeafletMandiMap
-            centres={centres.map((c) => ({
+          {(() => {
+            const mappedCentres = centres.map((c) => ({
               ...c,
               calculated_distance_km: farmerLocation
                 ? calculateHaversineDistance(farmerLocation.lat, farmerLocation.lng, c.latitude, c.longitude)
                 : (c.distance_km ?? null),
-            }))}
-            farmerLocation={farmerLocation}
-            height="460px"
-          />
+            }));
+            const sortedByDist = [...mappedCentres].sort(
+              (a, b) => (a.calculated_distance_km ?? 9999) - (b.calculated_distance_km ?? 9999)
+            );
+            const nearestId = farmerLocation && sortedByDist.length > 0 ? sortedByDist[0].id : null;
+
+            return (
+              <LeafletMandiMap
+                centres={sortedByDist}
+                farmerLocation={farmerLocation}
+                nearestCentreId={nearestId}
+                height="460px"
+              />
+            );
+          })()}
         </div>
       )}
     </div>

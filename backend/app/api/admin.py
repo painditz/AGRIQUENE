@@ -2,18 +2,23 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import uuid
 from ..db.session import get_db
 from ..models.models import (
     ProcurementCentre, Slot, Buyer, Farmer, User,
     Token, TokenStatus, Booking, ProcurementRecord, Payment,
-    CentreStatus, UserRole, AuditLog
+    CentreStatus, UserRole, AuditLog, PaymentStatus, Payout, PayoutStatus
 )
 from ..schemas.schemas import (
     CentreResponse, SlotResponse, AuditLogResponse,
-    CentreCreateRequest, CentreUpdateRequest, SlotCreateRequest
+    CentreCreateRequest, CentreUpdateRequest, SlotCreateRequest,
+    AdminRefundRequest, PayoutResponse, AdminAuthorizePayoutRequest,
+    AdminPayoutStatsResponse
 )
 from ..core.security import get_password_hash, require_role
 from ..services.audit_service import audit_service
+from ..services.sms_service import sms_service
+from ..services.notification_service import notification_service
 
 router = APIRouter(
     prefix="/admin",
@@ -345,3 +350,263 @@ def list_tokens_admin(
             "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
     return results
+
+# -------------------------------------------------------------
+# Admin Payment Management
+# -------------------------------------------------------------
+@router.get("/payments")
+def list_payments_admin(
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Payment).join(Farmer, Payment.farmer_id == Farmer.id).join(User, Farmer.user_id == User.id)
+    if status and status.upper() != "ALL":
+        query = query.filter(Payment.status == status.upper())
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            (User.full_name.ilike(s)) |
+            (User.mobile_number.ilike(s)) |
+            (Payment.transaction_ref.ilike(s)) |
+            (Payment.utr_number.ilike(s)) |
+            (Payment.razorpay_payment_id.ilike(s)) |
+            (Payment.razorpay_order_id.ilike(s))
+        )
+    
+    total = query.count()
+    payments = query.order_by(Payment.initiated_at.desc()).offset(offset).limit(limit).all()
+    results = []
+    for p in payments:
+        proc = p.procurement
+        farmer_user = p.farmer.user if p.farmer else None
+        results.append({
+            "id": p.id,
+            "transaction_ref": p.transaction_ref,
+            "farmer_id": p.farmer_id,
+            "farmer_name": farmer_user.full_name if farmer_user else "Farmer",
+            "farmer_mobile": farmer_user.mobile_number if farmer_user else "",
+            "amount": p.amount,
+            "currency": p.currency or "INR",
+            "purpose": p.purpose or (proc.crop_name if proc else "Fee / Token Service"),
+            "status": p.status.value,
+            "payment_mode": p.payment_mode,
+            "razorpay_order_id": p.razorpay_order_id,
+            "razorpay_payment_id": p.razorpay_payment_id,
+            "utr_number": p.utr_number,
+            "bank_account_masked": p.bank_account_masked or (p.farmer.bank_account_masked if p.farmer else None),
+            "bank_name": p.bank_name or (p.farmer.bank_name if p.farmer else None),
+            "failure_reason": p.failure_reason,
+            "refund_id": p.refund_id,
+            "refund_amount": p.refund_amount,
+            "refund_reason": p.refund_reason,
+            "initiated_at": p.initiated_at.isoformat() if p.initiated_at else None,
+            "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+        })
+    return {"total": total, "items": results}
+
+@router.get("/payments/stats")
+def get_payment_stats_admin(db: Session = Depends(get_db)):
+    all_payments = db.query(Payment).all()
+    total_count = len(all_payments)
+    total_amount = sum(p.amount for p in all_payments)
+    
+    success_p = [p for p in all_payments if p.status in [PaymentStatus.COMPLETED, PaymentStatus.SUCCESS]]
+    pending_p = [p for p in all_payments if p.status in [PaymentStatus.PENDING, PaymentStatus.PROCESSING, PaymentStatus.CREATED]]
+    failed_p = [p for p in all_payments if p.status == PaymentStatus.FAILED]
+    refunded_p = [p for p in all_payments if p.status == PaymentStatus.REFUNDED]
+    
+    return {
+        "total_count": total_count,
+        "total_amount_inr": total_amount,
+        "success_count": len(success_p),
+        "success_amount_inr": sum(p.amount for p in success_p),
+        "pending_count": len(pending_p),
+        "pending_amount_inr": sum(p.amount for p in pending_p),
+        "failed_count": len(failed_p),
+        "refunded_count": len(refunded_p),
+        "refunded_amount_inr": sum((p.refund_amount or p.amount) for p in refunded_p)
+    }
+
+@router.post("/payments/{payment_id}/refund")
+def process_payment_refund(
+    payment_id: int,
+    payload: AdminRefundRequest,
+    db: Session = Depends(get_db)
+):
+    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+        
+    if payment.status == PaymentStatus.REFUNDED:
+        raise HTTPException(status_code=400, detail="Payment has already been refunded.")
+
+    ref_id = f"ref_agq_{uuid.uuid4().hex[:12]}"
+    refund_amt = payload.refund_amount or payment.amount
+    
+    payment.status = PaymentStatus.REFUNDED
+    payment.refund_id = ref_id
+    payment.refund_amount = refund_amt
+    payment.refund_reason = payload.reason
+    db.commit()
+    db.refresh(payment)
+    
+    audit_service.log_event(
+        db, action="PAYMENT_REFUNDED", entity_type="PAYMENT",
+        entity_id=str(payment.id),
+        details=f"Payment {payment.transaction_ref} refunded (Amount: ₹{refund_amt:,.2f}, Reason: {payload.reason})"
+    )
+    
+    return {
+        "success": True,
+        "payment_id": payment.id,
+        "refund_id": ref_id,
+        "refund_amount": refund_amt,
+        "status": "REFUNDED",
+        "reason": payload.reason
+    }
+
+# -------------------------------------------------------------
+# Admin Outbound Procurement Payouts (DBT Settlements)
+# -------------------------------------------------------------
+@router.get("/payouts")
+def list_payouts_admin(
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    query = (
+        db.query(Payout)
+        .join(Farmer, Payout.farmer_id == Farmer.id)
+        .join(User, Farmer.user_id == User.id)
+        .join(ProcurementRecord, Payout.procurement_id == ProcurementRecord.id)
+    )
+    if status and status.upper() != "ALL":
+        query = query.filter(Payout.status == status.upper())
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            (User.full_name.ilike(s)) |
+            (User.mobile_number.ilike(s)) |
+            (Payout.payout_ref.ilike(s)) |
+            (Payout.utr_number.ilike(s)) |
+            (ProcurementRecord.receipt_number.ilike(s))
+        )
+    
+    total = query.count()
+    payouts = query.order_by(Payout.created_at.desc()).offset(offset).limit(limit).all()
+    results = []
+    for p in payouts:
+        farmer_user = p.farmer.user if p.farmer else None
+        proc = p.procurement
+        auth_user = p.authorized_by if p.authorized_by else None
+        results.append({
+            "id": p.id,
+            "procurement_id": p.procurement_id,
+            "receipt_number": proc.receipt_number if proc else "N/A",
+            "procurement_receipt_number": proc.receipt_number if proc else "N/A",
+            "farmer_id": p.farmer_id,
+            "farmer_name": farmer_user.full_name if farmer_user else "Farmer",
+            "farmer_mobile": farmer_user.mobile_number if farmer_user else "",
+            "crop": proc.crop_name if proc else "Produce",
+            "crop_name": proc.crop_name if proc else "Produce",
+            "centre_name": proc.centre.name if (proc and proc.centre) else "Procurement Centre",
+            "net_weight_quintals": proc.net_weight_quintals if proc else 0.0,
+            "amount": p.amount,
+            "amount_inr": p.amount,
+            "currency": p.currency or "INR",
+            "payout_ref": p.payout_ref,
+            "utr_number": p.utr_number,
+            "status": p.status.value,
+            "bank_account_masked": p.bank_account_masked or (p.farmer.bank_account_masked if p.farmer else None),
+            "bank_name": p.bank_name or (p.farmer.bank_name if p.farmer else None),
+            "ifsc_code": p.ifsc_code or (p.farmer.ifsc_code if p.farmer else None),
+            "authorized_by": auth_user.full_name if auth_user else None,
+            "authorized_at": p.authorized_at.isoformat() if p.authorized_at else None,
+            "processed_at": p.processed_at.isoformat() if p.processed_at else None,
+            "failure_reason": p.failure_reason,
+            "created_at": p.created_at.isoformat() if p.created_at else None
+        })
+    return {"total": total, "items": results}
+
+@router.get("/payouts/stats")
+def get_payout_stats_admin(db: Session = Depends(get_db)):
+    all_payouts = db.query(Payout).all()
+    total_val = sum(p.amount for p in all_payouts)
+    
+    pending_p = [p for p in all_payouts if p.status in [PayoutStatus.CREATED, PayoutStatus.QUEUED, PayoutStatus.PROCESSING]]
+    completed_p = [p for p in all_payouts if p.status == PayoutStatus.PROCESSED]
+    failed_p = [p for p in all_payouts if p.status == PayoutStatus.FAILED]
+    
+    return {
+        "total_procurement_value": total_val,
+        "pending_payouts_count": len(pending_p),
+        "pending_payouts_amount": sum(p.amount for p in pending_p),
+        "completed_payouts_count": len(completed_p),
+        "completed_payouts_amount": sum(p.amount for p in completed_p),
+        "failed_payouts_count": len(failed_p)
+    }
+
+@router.post("/payouts/{payout_id}/authorize")
+def authorize_payout_admin(
+    payout_id: int,
+    payload: AdminAuthorizePayoutRequest,
+    current_admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: Session = Depends(get_db)
+):
+    payout = db.query(Payout).filter(Payout.id == payout_id).first()
+    if not payout:
+        raise HTTPException(status_code=404, detail="Payout record not found")
+        
+    if payout.status == PayoutStatus.PROCESSED:
+        raise HTTPException(status_code=400, detail="This payout has already been authorized and processed.")
+        
+    # Generate banking settlement UTR
+    import random
+    utr_number = f"UTR{datetime.utcnow().strftime('%y%m%d')}{random.randint(100000, 999999)}"
+    
+    payout.status = PayoutStatus.PROCESSED
+    payout.utr_number = utr_number
+    payout.authorized_by_admin_id = current_admin.id
+    payout.authorized_at = datetime.utcnow()
+    payout.processed_at = datetime.utcnow()
+    payout.failure_reason = None
+    db.commit()
+    db.refresh(payout)
+    
+    # Notify farmer of credit
+    farmer_user = payout.farmer.user if payout.farmer else None
+    if farmer_user:
+        sms_service.send_sms(
+            db, farmer_user.mobile_number,
+            f"GOV DBT CREDIT: Rs.{payout.amount:,.2f} disbursed for procurement. UTR: {utr_number}. Bank: {payout.bank_account_masked}.",
+            "PAYOUT_COMPLETED"
+        )
+        notification_service.create_notification(
+            db, farmer_user.id,
+            "DBT Procurement Payout Disbursed",
+            f"Your procurement payment of Rs.{payout.amount:,.2f} has been settled via PFMS/DBT. UTR: {utr_number}.",
+            "PAYMENT"
+        )
+        
+    audit_service.log_event(
+        db, action="PAYOUT_AUTHORIZED", entity_type="PAYOUT",
+        entity_id=str(payout.id), user_id=current_admin.id,
+        details=f"Admin {current_admin.full_name} authorized DBT payout {payout.payout_ref} of ₹{payout.amount:,.2f}. UTR: {utr_number}"
+    )
+    
+    return {
+        "success": True,
+        "payout_id": payout.id,
+        "payout_ref": payout.payout_ref,
+        "utr_number": utr_number,
+        "status": "PROCESSED",
+        "amount": payout.amount,
+        "authorized_by": current_admin.full_name,
+        "processed_at": payout.processed_at.isoformat()
+    }
+

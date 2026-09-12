@@ -6,7 +6,7 @@ from typing import List, Optional
 from ..db.session import get_db
 from ..models.models import (
     Token, TokenStatus, ProcurementRecord, Payment,
-    PaymentStatus, Crop, Buyer, Farmer
+    PaymentStatus, Payout, PayoutStatus, Crop, Buyer, Farmer
 )
 from ..schemas.schemas import ProcurementSubmitRequest, ProcurementResponse
 from ..services.sms_service import sms_service
@@ -84,8 +84,26 @@ async def submit_procurement(payload: ProcurementSubmitRequest, db: Session = De
     db.commit()
     db.refresh(record)
 
-    # Initialize DBT Payment
+    # Initialize DBT Payment & Payout record
     payment = payment_service.create_payment_for_procurement(db, record, farmer)
+    
+    existing_payout = db.query(Payout).filter(Payout.procurement_id == record.id).first()
+    if not existing_payout:
+        payout_ref = f"PAYOUT-AGQ-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+        payout = Payout(
+            procurement_id=record.id,
+            farmer_id=farmer.id,
+            amount=total_amount,
+            currency="INR",
+            payout_ref=payout_ref,
+            status=PayoutStatus.CREATED,
+            bank_account_masked=farmer.bank_account_masked,
+            bank_name=farmer.bank_name,
+            ifsc_code=farmer.ifsc_code,
+            created_at=datetime.utcnow()
+        )
+        db.add(payout)
+        db.commit()
 
     # Dispatch SMS to Farmer
     farmer_user = farmer.user

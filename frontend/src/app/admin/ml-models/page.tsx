@@ -11,11 +11,18 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
 
+import { useAuth } from "@/context/AuthContext";
+
 export default function AdminMLModelsPage() {
+  const { user } = useAuth();
   const [mlData, setMlData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const data = await api.getMLMetrics();
@@ -25,7 +32,7 @@ export default function AdminMLModelsPage() {
       }
     }
     load();
-  }, []);
+  }, [user]);
 
   const metrics = mlData?.metrics || {
     model_type: "XGBoost Regressor (Tree-based Gradient Boosting)",

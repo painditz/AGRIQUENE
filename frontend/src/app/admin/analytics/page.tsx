@@ -7,13 +7,19 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid
 } from "recharts";
+import { useAuth } from "@/context/AuthContext";
 import { BarChart3, TrendingUp, Clock, Scale, Building2, ShieldCheck, RefreshCw } from "lucide-react";
 
 export default function AdminAnalyticsPage() {
+  const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const res = await api.getAnalyticsOverview();
@@ -23,7 +29,7 @@ export default function AdminAnalyticsPage() {
       }
     }
     load();
-  }, []);
+  }, [user]);
 
   const hourlyRush = data?.hourly_rush || [];
   const dailyTrend = data?.daily_trend || [];

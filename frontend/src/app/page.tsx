@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
+import { api, CentreItem } from "@/lib/api";
 import {
   CalendarPlus, Ticket, Activity, Cpu, Scale, CreditCard,
   ArrowRight, ShieldCheck, CheckCircle2, Clock, MapPin,
@@ -12,6 +13,20 @@ import { APP_CONFIG } from "@/lib/constants";
 
 export default function HomePage() {
   const { t } = useLanguage();
+  const [liveCentres, setLiveCentres] = useState<CentreItem[]>([]);
+
+  useEffect(() => {
+    async function loadCentres() {
+      try {
+        const data = await api.getCentres();
+        setLiveCentres(data || []);
+      } catch {}
+    }
+    loadCentres();
+  }, []);
+
+  const activeCentre = liveCentres.length > 0 ? liveCentres[0] : null;
+  const secondaryCentre = liveCentres.length > 1 ? liveCentres[1] : null;
 
   const serviceCards = [
     {
@@ -122,9 +137,25 @@ export default function HomePage() {
                   <span className="w-2 h-2 rounded-full bg-emerald-400 live-pulse" />
                   Live Mandi Feeds:
                 </span>
-                <span>Ghaziabad Mandi: <strong className="text-white">14 in queue (ETA ~33 min)</strong></span>
-                <span className="hidden sm:inline">•</span>
-                <span>Karnal APMC: <strong className="text-white">8 in queue (ETA ~20 min)</strong></span>
+                {activeCentre && (
+                  <span>
+                    {activeCentre.name.split("–")[0].trim()}:{" "}
+                    <strong className="text-white">
+                      {activeCentre.current_waiting_count} in queue (ETA ~{activeCentre.estimated_wait_min} min)
+                    </strong>
+                  </span>
+                )}
+                {secondaryCentre && (
+                  <>
+                    <span className="hidden sm:inline">•</span>
+                    <span>
+                      {secondaryCentre.name.split("–")[0].trim()}:{" "}
+                      <strong className="text-white">
+                        {secondaryCentre.current_waiting_count} in queue (ETA ~{secondaryCentre.estimated_wait_min} min)
+                      </strong>
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -135,11 +166,11 @@ export default function HomePage() {
                   <div className="flex items-center gap-2">
                     <Activity className="w-4 h-4 text-[#B91C1C]" />
                     <span className="font-bold text-xs uppercase tracking-wider">
-                      Live Queue Telemetry Demo
+                      Live Queue Telemetry
                     </span>
                   </div>
                   <span className="bg-[#15803D] text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                    Serving #114
+                    {activeCentre ? `${activeCentre.active_counters} Desks Active` : "Counters Active"}
                   </span>
                 </div>
 
@@ -147,57 +178,63 @@ export default function HomePage() {
                   <div className="flex items-start justify-between border-b pb-3">
                     <div>
                       <p className="text-[11px] font-bold uppercase text-slate-500">
-                        Target Demo Mandi
+                        Operational Mandi
                       </p>
                       <p className="text-sm font-bold text-[#0B2545]">
-                        Agri Procurement Centre – Ghaziabad
+                        {activeCentre ? activeCentre.name : "National APMC Procurement Centre"}
                       </p>
-                      <p className="text-xs text-slate-600">Farmer: Ramesh Kumar Sharma</p>
+                      <p className="text-xs text-slate-600">
+                        {activeCentre ? `${activeCentre.district}, ${activeCentre.state}` : "All India Network"}
+                      </p>
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded border border-amber-300">
-                        TOKEN #128
+                        {activeCentre?.status || "OPEN"}
                       </span>
-                      <p className="text-xs font-bold text-slate-700 mt-1">Position: #14</p>
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        In Queue: {activeCentre?.current_waiting_count ?? 0}
+                      </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded border border-slate-200">
                     <div>
                       <p className="text-[10px] font-bold uppercase text-slate-500">
-                        AI Estimated Wait
+                        Average Processing
                       </p>
                       <p className="text-2xl font-black text-[#0B2545] font-mono">
-                        33 <span className="text-xs font-semibold text-slate-600">Min</span>
+                        {activeCentre?.avg_processing_time_min ?? 8} <span className="text-xs font-semibold text-slate-600">Min/load</span>
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] font-bold uppercase text-slate-500">
-                        Expected Turn
+                        Estimated Wait
                       </p>
                       <p className="text-xl font-black text-[#B91C1C] font-mono">
-                        11:42 AM
+                        ~{activeCentre?.estimated_wait_min ?? 15} Min
                       </p>
                     </div>
                   </div>
 
                   <div className="bg-emerald-50 border border-emerald-300 p-2.5 rounded text-xs text-emerald-950 flex items-center justify-between">
-                    <span>Recommended Departure:</span>
-                    <strong className="font-mono text-sm text-[#0B2545]">11:00 AM</strong>
+                    <span>Operating Hours:</span>
+                    <strong className="font-mono text-xs text-[#0B2545]">
+                      {activeCentre?.open_time || "08:00 AM"} – {activeCentre?.close_time || "06:00 PM"}
+                    </strong>
                   </div>
 
                   <div className="pt-1 flex gap-2">
                     <Link
-                      href="/farmer/queue"
+                      href="/farmer/centres"
                       className="btn-gov-primary flex-1 text-center text-xs py-2 font-bold"
                     >
-                      Open Live Queue Tracker
+                      Find Nearest Mandi
                     </Link>
                     <Link
                       href="/farmer/book"
                       className="btn-gov-outline flex-1 text-center text-xs py-2 font-bold"
                     >
-                      Book New Slot
+                      Book Slot
                     </Link>
                   </div>
                 </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { api, AuditLogItem } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import {
   ShieldCheck, RefreshCw, Filter, Search, Calendar,
   Clock, User, CheckCircle2, AlertCircle, FileText,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 
 export default function AdminAuditLogsPage() {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState("ALL");
@@ -17,6 +19,10 @@ export default function AdminAuditLogsPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   const fetchLogs = async () => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await api.getAuditLogs(
@@ -33,8 +39,10 @@ export default function AdminAuditLogsPage() {
   };
 
   useEffect(() => {
-    fetchLogs();
-  }, [actionFilter]);
+    if (user && user.role === "ADMIN") {
+      fetchLogs();
+    }
+  }, [actionFilter, user]);
 
   useEffect(() => {
     if (!autoRefresh) return;

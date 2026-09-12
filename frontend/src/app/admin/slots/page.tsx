@@ -5,7 +5,10 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { api, SlotItem, CentreItem } from "@/lib/api";
 import { Calendar, Sliders, CheckCircle2, RefreshCw, Building2 } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
+
 export default function AdminSlotsPage() {
+  const { user } = useAuth();
   const [centres, setCentres] = useState<CentreItem[]>([]);
   const [selectedCentreId, setSelectedCentreId] = useState<number | null>(null);
   const [slots, setSlots] = useState<SlotItem[]>([]);
@@ -13,6 +16,10 @@ export default function AdminSlotsPage() {
 
   // Load available centres
   useEffect(() => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     async function loadCentres() {
       try {
         const data = await api.getCentres();

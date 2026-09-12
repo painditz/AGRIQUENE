@@ -71,6 +71,7 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
             workload_pct=centre.workload_pct
         )
         
+        slot_date = t.slot.date if t.slot else None
         slot_time = f"{t.slot.start_time}" if t.slot else "11:00 AM"
         counter = t.queue_entry.counter_assigned if t.queue_entry else (1 if t.status in [TokenStatus.CALLED, TokenStatus.PROCESSING] else None)
         
@@ -80,14 +81,23 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
             token_display=t.token_display,
             farmer_name=farmer_name,
             farmer_mobile_masked=mobile_masked,
+            farmer_id=t.farmer_id,
+            farmer_id_card=t.farmer.farmer_id_card if t.farmer else None,
+            farmer_village=t.farmer.village if t.farmer else None,
+            farmer_district=t.farmer.district if t.farmer else None,
             crop=t.booking.crop_type if t.booking else "Wheat",
             quantity_quintals=t.booking.estimated_quantity_quintals if t.booking else 35.0,
+            slot_date=slot_date,
             slot_time=slot_time,
+            booking_reference=t.booking.booking_reference if t.booking else None,
             status=t.status,
             position=t.current_position,
             estimated_wait_min=eta_data["predicted_wait_minutes"],
             expected_turn_time=eta_data["expected_turn_time"],
-            counter_assigned=counter
+            counter_assigned=counter,
+            arrived_at=t.arrived_at,
+            called_at=t.called_at,
+            started_at=t.started_at
         ))
         
     return CentreQueueStatusResponse(
@@ -104,8 +114,15 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
     )
 
 @router.post("/call-next")
-async def call_next_token(payload: QueueCallRequest, centre_id: Optional[int] = 1, db: Session = Depends(get_db)):
-    centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == centre_id).first()
+async def call_next_token(payload: QueueCallRequest, centre_id: Optional[int] = None, db: Session = Depends(get_db)):
+    # If token_id specified, resolve centre from token
+    if payload.token_id:
+        target_token = db.query(Token).filter(Token.id == payload.token_id).first()
+        if target_token:
+            centre_id = target_token.centre_id
+
+    effective_centre_id = centre_id or 1
+    centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == effective_centre_id).first()
     if not centre:
         raise HTTPException(status_code=404, detail="Centre not found")
         

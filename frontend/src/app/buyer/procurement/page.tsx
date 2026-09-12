@@ -38,10 +38,25 @@ export default function BuyerProcurementPage() {
           api.getCrops(),
         ]);
         setQueueStatus(q);
-        const activeId = q.current_serving_id || (q.queue.length > 0 ? q.queue[0].token_id : null);
-        if (activeId) {
-          setSelectedTokenId(activeId);
-          const found = q.queue.find(item => item.token_id === activeId);
+        
+        let targetId: number | null = null;
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const tId = params.get("token_id");
+          if (tId) {
+            const parsed = parseInt(tId, 10);
+            if (!isNaN(parsed) && q.queue.some(item => item.token_id === parsed)) {
+              targetId = parsed;
+            }
+          }
+        }
+        if (!targetId) {
+          targetId = q.current_serving_id || (q.queue.length > 0 ? q.queue[0].token_id : null);
+        }
+
+        if (targetId) {
+          setSelectedTokenId(targetId);
+          const found = q.queue.find(item => item.token_id === targetId);
           if (found) {
             setGrossWeight(found.quantity_quintals + 2.0);
             const matchedCrop = crops.find(c => c.name.toLowerCase().includes(found.crop.toLowerCase()));

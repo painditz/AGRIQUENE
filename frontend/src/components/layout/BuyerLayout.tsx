@@ -3,9 +3,10 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
   Activity, Users, Scale, Sliders, BarChart3,
-  Building2, CheckCircle2, Play
+  Building2, CheckCircle2, Play, Lock, ArrowLeft, ShieldCheck
 } from "lucide-react";
 import { useQueueSocket } from "@/context/QueueSocketContext";
 
@@ -15,6 +16,7 @@ interface BuyerLayoutProps {
 
 export function BuyerLayout({ children }: BuyerLayoutProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
   const { isConnected } = useQueueSocket();
 
   const buyerNav = [
@@ -23,6 +25,66 @@ export function BuyerLayout({ children }: BuyerLayoutProps) {
     { name: "Procurement / Weighing", href: "/buyer/procurement", icon: Scale },
     { name: "Active Counters", href: "/buyer/counters", icon: Sliders },
   ];
+
+  // RBAC: Guard Mandi Staff / Buyer routes
+  if (!user || (user.role !== "BUYER" && user.role !== "ADMIN")) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col">
+        <div className="bg-[#0B2545] text-white py-2.5 px-4 border-b border-[#1E3A8A] shadow-sm">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-100">
+              Department of Food & Public Distribution | Mandi Operational Desk
+            </span>
+            <span className="text-xs text-amber-300 font-mono font-bold">
+              Staff Only
+            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-lg border-2 border-[#0B2545] p-6 shadow-xl text-center space-y-4">
+            <div className="w-14 h-14 bg-blue-50 border-2 border-[#0B2545] rounded-full flex items-center justify-center mx-auto text-[#0B2545]">
+              <Lock className="w-7 h-7" />
+            </div>
+
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#0B2545] bg-blue-100 px-2 py-0.5 rounded">
+                OPERATIONAL DESK AUTHENTICATION
+              </span>
+              <h2 className="text-xl font-bold text-[#0B2545] font-serif mt-2">
+                Mandi Staff Clearance Required
+              </h2>
+              <p className="text-xs text-slate-600 mt-1">
+                You are currently logged in as{" "}
+                <strong className="text-[#0B2545]">{user ? user.role : "GUEST"}</strong>.
+                Weighbridge procurement desks and queue advancement controls require official procurement officer credentials.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Link
+                href="/buyer/login"
+                className="flex-1 bg-[#0B2545] hover:bg-[#133E68] text-white py-2.5 px-4 rounded text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <span>Staff Sign In</span>
+              </Link>
+
+              <Link
+                href={user?.role === "FARMER" ? "/farmer/dashboard" : "/"}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 py-2.5 px-4 rounded text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>{user?.role === "FARMER" ? "Farmer Dashboard" : "Return to Portal"}</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const mandiDisplayName = user?.centreName || "Procurement Operations Centre";
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
@@ -34,7 +96,7 @@ export function BuyerLayout({ children }: BuyerLayoutProps) {
               GOV OPERATIONAL DESK
             </span>
             <span className="text-xs font-bold text-slate-100">
-              Agri Procurement Centre – Ghaziabad Mandi (Counter #1)
+              {mandiDisplayName} (Counter #1)
             </span>
           </div>
 

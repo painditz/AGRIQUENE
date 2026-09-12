@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from ..models.models import UserRole, BookingStatus, TokenStatus, PaymentStatus, CentreStatus
+from ..models.models import UserRole, BookingStatus, TokenStatus, PaymentStatus, PayoutStatus, CentreStatus
 
 # -------------------------------------------------------------
 # Auth Schemas
@@ -67,8 +67,9 @@ class FarmerProfileResponse(BaseModel):
     state: str
     pin_code: Optional[str] = None
     land_acres: float
-    bank_account_masked: str
-    ifsc_code: str
+    bank_account_masked: Optional[str] = None
+    bank_name: Optional[str] = None
+    ifsc_code: Optional[str] = None
     preferred_crop: str
     preferred_centre_id: Optional[int] = None
     preferred_centre_name: Optional[str] = None
@@ -186,14 +187,23 @@ class QueueItem(BaseModel):
     token_display: str
     farmer_name: str
     farmer_mobile_masked: str
+    farmer_id: Optional[int] = None
+    farmer_id_card: Optional[str] = None
+    farmer_village: Optional[str] = None
+    farmer_district: Optional[str] = None
     crop: str
     quantity_quintals: float
+    slot_date: Optional[str] = None
     slot_time: str
+    booking_reference: Optional[str] = None
     status: TokenStatus
     position: int
     estimated_wait_min: int
     expected_turn_time: str
     counter_assigned: Optional[int] = None
+    arrived_at: Optional[datetime] = None
+    called_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
 
 class CentreQueueStatusResponse(BaseModel):
     centre_id: int
@@ -273,24 +283,111 @@ class PaymentUpdateStatusRequest(BaseModel):
 
 class PaymentResponse(BaseModel):
     id: int
-    procurement_id: int
+    procurement_id: Optional[int] = None
+    booking_id: Optional[int] = None
     receipt_number: str
     farmer_id: int
     farmer_name: str
     crop: str
     net_weight_quintals: float
     amount: float
+    currency: str = "INR"
+    purpose: Optional[str] = None
     transaction_ref: str
     utr_number: Optional[str] = None
-    bank_account_masked: str
-    bank_name: str
+    bank_account_masked: Optional[str] = None
+    bank_name: Optional[str] = None
     payment_mode: str
     status: PaymentStatus
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    failure_reason: Optional[str] = None
+    refund_id: Optional[str] = None
+    refund_amount: Optional[float] = None
+    refund_reason: Optional[str] = None
+    verified_at: Optional[datetime] = None
     initiated_at: datetime
     completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+class CreatePaymentOrderRequest(BaseModel):
+    amount: float
+    booking_id: Optional[int] = None
+    procurement_id: Optional[int] = None
+    purpose: str = "Weighbridge & Booking Processing Fee"
+
+class PaymentOrderResponse(BaseModel):
+    order_id: str
+    amount: float
+    currency: str = "INR"
+    key_id: str
+    payment_record_id: int
+    purpose: str
+    status: str = "CREATED"
+
+class VerifyPaymentRequest(BaseModel):
+    order_id: str
+    payment_id: str
+    signature: str
+    payment_record_id: Optional[int] = None
+
+class PaymentFailureRequest(BaseModel):
+    order_id: str
+    payment_record_id: Optional[int] = None
+    error_code: Optional[str] = None
+    error_description: Optional[str] = None
+
+class BankDetailsUpdateRequest(BaseModel):
+    bank_name: str
+    account_number: str
+    ifsc_code: str
+
+class AdminRefundRequest(BaseModel):
+    reason: str
+    refund_amount: Optional[float] = None
+
+class PayoutResponse(BaseModel):
+    id: int
+    procurement_id: int
+    receipt_number: Optional[str] = None
+    procurement_receipt_number: Optional[str] = None
+    farmer_id: int
+    farmer_name: str
+    farmer_mobile: Optional[str] = None
+    crop: str
+    crop_name: Optional[str] = None
+    centre_name: Optional[str] = None
+    net_weight_quintals: float
+    amount: float
+    amount_inr: Optional[float] = None
+    currency: str = "INR"
+    payout_ref: str
+    utr_number: Optional[str] = None
+    status: PayoutStatus
+    bank_account_masked: Optional[str] = None
+    bank_name: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    authorized_by: Optional[str] = None
+    authorized_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
+    failure_reason: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AdminAuthorizePayoutRequest(BaseModel):
+    remarks: Optional[str] = "Approved government DBT procurement payout"
+
+class AdminPayoutStatsResponse(BaseModel):
+    total_procurement_value: float
+    pending_payouts_count: int
+    pending_payouts_amount: float
+    completed_payouts_count: int
+    completed_payouts_amount: float
+    failed_payouts_count: int
 
 # -------------------------------------------------------------
 # Notifications & SMS Logs

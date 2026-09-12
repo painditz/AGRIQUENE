@@ -68,6 +68,15 @@ export default function FarmerDashboardPage() {
     }
   }, [lastEvent, loadData]);
 
+  // Listen for global mandi change event
+  useEffect(() => {
+    const handleMandiChanged = () => {
+      loadData();
+    };
+    window.addEventListener("mandi-changed", handleMandiChanged);
+    return () => window.removeEventListener("mandi-changed", handleMandiChanged);
+  }, [loadData]);
+
   // If token changes to CALLED, trigger sound
   useEffect(() => {
     if (token?.status === "CALLED") {
@@ -87,8 +96,8 @@ export default function FarmerDashboardPage() {
     (user?.mobileNumber ? `PMK-UP-2026-${user.mobileNumber.slice(-4)}` : "Registered Account");
 
   const farmerLocationDisplay = farmerProfile?.district
-    ? `${farmerProfile.village ? farmerProfile.village + ", " : ""}${farmerProfile.district}, ${farmerProfile.state || "Uttar Pradesh"}`
-    : "Uttar Pradesh";
+    ? `${farmerProfile.village ? farmerProfile.village + ", " : ""}${farmerProfile.district}, ${farmerProfile.state || "India"}`
+    : "Location Pending Profile Registration";
 
   const isCalled = token?.status === "CALLED";
 

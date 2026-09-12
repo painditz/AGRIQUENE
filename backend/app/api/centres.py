@@ -23,6 +23,10 @@ def list_centres(
     state: Optional[str] = None,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
+    search: Optional[str] = None,
+    limit: Optional[int] = None,
+    radius_km: Optional[float] = None,
+    include_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(ProcurementCentre)
@@ -30,6 +34,15 @@ def list_centres(
         query = query.filter(ProcurementCentre.district.ilike(f"%{district}%"))
     if state:
         query = query.filter(ProcurementCentre.state.ilike(f"%{state}%"))
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            (ProcurementCentre.name.ilike(s)) |
+            (ProcurementCentre.district.ilike(s)) |
+            (ProcurementCentre.state.ilike(s)) |
+            (ProcurementCentre.address.ilike(s)) |
+            (ProcurementCentre.code.ilike(s))
+        )
         
     centres = query.all()
     results = []
@@ -80,6 +93,27 @@ def list_centres(
             available_slots_today=total_avail,
             distance_km=dist
         ))
+
+    if lat is not None and lng is not None:
+        results.sort(key=lambda x: x.distance_km if x.distance_km is not None else float("inf"))
+        
+        if radius_km is not None:
+            results = [x for x in results if x.distance_km is not None and x.distance_km <= radius_km]
+
+    # If limit is specified and include_id is given, ensure include_id is present
+    if limit is not None and limit > 0:
+        if include_id is not None:
+            included_centre = next((x for x in results if x.id == include_id), None)
+            top_results = [x for x in results if x.id != include_id][:limit - 1 if included_centre else limit]
+            if included_centre:
+                top_results.append(included_centre)
+                # re-sort if distances exist
+                if lat is not None and lng is not None:
+                    top_results.sort(key=lambda x: x.distance_km if x.distance_km is not None else float("inf"))
+            results = top_results
+        else:
+            results = results[:limit]
+
     return results
 
 @router.get("/{centre_id}", response_model=CentreResponse)

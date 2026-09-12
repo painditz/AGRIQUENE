@@ -36,7 +36,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (savedToken && savedUser) {
       try {
         setToken(savedToken);
-        setUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+
+        // Re-hydrate fresh profile directly from backend
+        api.getMe().then((me) => {
+          const freshUser: UserInfo = {
+            id: me.id,
+            fullName: me.full_name,
+            mobileNumber: me.mobile_number,
+            role: me.role,
+            isRegistered: me.is_registered,
+            centreId: me.centre_id,
+            centreName: me.centre_name,
+          };
+          setUser(freshUser);
+          localStorage.setItem("agriquene_user", JSON.stringify(freshUser));
+        }).catch(() => {
+          // Token invalid or expired
+          localStorage.removeItem("agriquene_token");
+          localStorage.removeItem("agriquene_user");
+          setUser(null);
+          setToken(null);
+        });
         return;
       } catch {
         localStorage.removeItem("agriquene_token");

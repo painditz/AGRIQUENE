@@ -10,12 +10,18 @@ import {
   Users, Building2, Calendar, Activity, CheckCircle2,
   CreditCard, ArrowRight, BarChart3, Cpu, Sliders
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const data = await api.getAdminDashboard();
@@ -25,7 +31,7 @@ export default function AdminDashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [user]);
 
   const ov = dashboardData?.overview || {
     total_farmers: 0,

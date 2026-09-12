@@ -5,11 +5,18 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { api } from "@/lib/api";
 import { UserCog, Plus, CheckCircle2 } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
+
 export default function AdminBuyersPage() {
+  const { user } = useAuth();
   const [buyers, setBuyers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user || user.role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const data = await api.getAdminBuyers();
@@ -19,7 +26,7 @@ export default function AdminBuyersPage() {
       }
     }
     load();
-  }, []);
+  }, [user]);
 
   return (
     <AdminLayout>
