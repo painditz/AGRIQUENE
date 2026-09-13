@@ -10,7 +10,7 @@ import { useToast } from "@/context/ToastContext";
 import {
   Activity, Play, CheckCircle2, AlertCircle, Clock,
   Users, RefreshCw, Scale, ChevronRight, Volume2, UserCheck, SkipForward,
-  Info, Eye, X, MapPin, Calendar, ShieldCheck
+  Info, Eye, X, MapPin, Calendar, ShieldCheck, Truck, ClipboardCheck
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,10 @@ export default function StaffQueuePage() {
   // Inspector Modal State
   const [inspectToken, setInspectToken] = useState<QueueItem | null>(null);
 
+  // Centre isolation: lock to user.centreId if staff officer
+  const isOfficer = user?.role === "MANDI_OFFICER" || user?.role === "BUYER";
+  const effectiveCentreId = (isOfficer && user?.centreId) ? user.centreId : (selectedCentreId || user?.centreId || 1);
+
   useEffect(() => {
     async function loadCentres() {
       try {
@@ -46,8 +50,6 @@ export default function StaffQueuePage() {
     }
     loadCentres();
   }, [user?.centreId, selectedCentreId, setActiveCentreId]);
-
-  const effectiveCentreId = selectedCentreId || user?.centreId || 1;
 
   const loadQueue = useCallback(async () => {
     try {
@@ -107,6 +109,32 @@ export default function StaffQueuePage() {
     }
   };
 
+  const handleStartInspection = async (tokenId: number) => {
+    setActionLoadingId(tokenId);
+    try {
+      const res = await api.startInspection(tokenId);
+      showToast(res.message || "Crop quality inspection initiated", "success");
+      await loadQueue();
+    } catch (err: any) {
+      showToast(err.message || "Failed to start inspection", "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleStartWeighing = async (tokenId: number) => {
+    setActionLoadingId(tokenId);
+    try {
+      await api.startWeighing(tokenId);
+      showToast("Token assigned to weighbridge desk", "success");
+      router.push(`/staff/procurement?token_id=${tokenId}`);
+    } catch (err: any) {
+      showToast(err.message || "Failed to start weighing", "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleSkipToken = async (tokenId: number) => {
     setActionLoadingId(tokenId);
     try {
@@ -120,21 +148,8 @@ export default function StaffQueuePage() {
     }
   };
 
-  const handleStartWeighing = async (tokenId: number) => {
-    setActionLoadingId(tokenId);
-    try {
-      await api.startTokenProcessing(tokenId);
-      showToast("Token set to PROCESSING on weighbridge", "success");
-      router.push(`/staff/procurement?token_id=${tokenId}`);
-    } catch (err: any) {
-      showToast(err.message || "Failed to start weighing", "error");
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
   const currentServingItem = queueStatus?.queue.find(
-    (item) => item.status === "CALLED" || item.status === "PROCESSING"
+    (item) => item.status === "CALLED" || item.status === "PROCESSING" || item.status === "INSPECTION" || item.status === "WEIGHING"
   );
 
   return (
@@ -152,7 +167,7 @@ export default function StaffQueuePage() {
               </span>
             </div>
             <h1 className="text-2xl font-black text-[#0B2545] font-serif mt-1">
-              {queueStatus?.centre_name || "Procurement Centre Live Queue"}
+              {queueStatus?.centre_name || "Narela Krishi Grain Mandi (APMC)"}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Serving: <strong>Counter #1</strong> • Live capacity synchronization with gate & weighbridge.
@@ -226,7 +241,7 @@ export default function StaffQueuePage() {
               </h3>
             </div>
             <span className="text-xs text-slate-500">
-              Auto-updating via WebSocket • Click any row or Inspect button to view dossier
+              Real-time synchronization • Click any row or Inspect button to view dossier
             </span>
           </div>
 
@@ -235,9 +250,15 @@ export default function StaffQueuePage() {
               <RefreshCw className="w-8 h-8 text-[#0B2545] animate-spin mx-auto mb-3" />
               <p className="text-xs text-slate-600 font-bold">Querying Centre Queue Stream...</p>
             </div>
-          ) : queueStatus?.queue.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 text-xs">
-              No active tokens in queue for this procurement centre.
+          ) : !queueStatus?.queue || queueStatus.queue.length === 0 ? (
+            <div className="p-16 text-center text-slate-500 space-y-2">
+              <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                <Users className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700">No farmers currently in queue.</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Tokens booked by farmers at this mandi will automatically synchronize here in real-time.
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -257,7 +278,7 @@ export default function StaffQueuePage() {
                 <tbody className="divide-y divide-slate-100">
                   {queueStatus?.queue.map((item) => {
                     const isBusy = actionLoadingId === item.token_id;
-                    const isServing = item.status === "CALLED" || item.status === "PROCESSING";
+                    const isServing = item.status === "CALLED" || item.status === "PROCESSING" || item.status === "INSPECTION" || item.status === "WEIGHING";
                     return (
                       <tr
                         key={item.token_id}
@@ -291,14 +312,14 @@ export default function StaffQueuePage() {
                           <StatusBadge status={item.status} />
                         </td>
                         <td className="p-3 font-mono text-slate-600">
-                          {item.status === "WAITING" ? `${item.estimated_wait_min}m` : "At Desk"}
+                          {item.status === "WAITING" || item.status === "BOOKED" ? `${item.estimated_wait_min}m` : "At Desk"}
                         </td>
                         <td
                           className="p-3 text-center"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div className="flex items-center justify-center gap-1.5">
-                            {item.status === "WAITING" && (
+                            {(item.status === "WAITING" || item.status === "BOOKED") && (
                               <button
                                 onClick={() => handleMarkArrived(item.token_id)}
                                 disabled={isBusy}
@@ -308,7 +329,7 @@ export default function StaffQueuePage() {
                               </button>
                             )}
 
-                            {(item.status === "WAITING" || item.status === "ARRIVED") && (
+                            {(item.status === "WAITING" || item.status === "ARRIVED" || item.status === "BOOKED") && (
                               <button
                                 onClick={() => handleCallNext(1, item.token_id)}
                                 disabled={isBusy}
@@ -320,27 +341,39 @@ export default function StaffQueuePage() {
 
                             {item.status === "CALLED" && (
                               <button
-                                onClick={() => handleStartWeighing(item.token_id)}
+                                onClick={() => handleStartInspection(item.token_id)}
                                 disabled={isBusy}
-                                className="px-2.5 py-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 rounded text-[10px] font-bold"
+                                className="px-2.5 py-1 bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-300 rounded text-[10px] font-bold flex items-center gap-1"
                               >
-                                Start Weighing
+                                <ClipboardCheck className="w-3 h-3" />
+                                <span>Inspect</span>
                               </button>
                             )}
 
-                            {item.status === "PROCESSING" && (
+                            {(item.status === "CALLED" || item.status === "INSPECTION") && (
+                              <button
+                                onClick={() => handleStartWeighing(item.token_id)}
+                                disabled={isBusy}
+                                className="px-2.5 py-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 rounded text-[10px] font-bold flex items-center gap-1"
+                              >
+                                <Scale className="w-3 h-3" />
+                                <span>Weigh</span>
+                              </button>
+                            )}
+
+                            {(item.status === "PROCESSING" || item.status === "WEIGHING") && (
                               <Link
                                 href={`/staff/procurement?token_id=${item.token_id}`}
                                 className="px-2.5 py-1 bg-[#0B2545] text-white hover:bg-[#133E68] rounded text-[10px] font-bold inline-flex items-center gap-1"
                               >
                                 <Scale className="w-3 h-3" />
-                                <span>Weigh</span>
+                                <span>Desk Form</span>
                               </Link>
                             )}
 
                             <button
                               onClick={() => handleSkipToken(item.token_id)}
-                              disabled={isBusy || item.status === "COMPLETED"}
+                              disabled={isBusy || item.status === "COMPLETED" || item.status === "PROCUREMENT_COMPLETED"}
                               className="px-2 py-1 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded text-[10px] font-bold"
                             >
                               Skip
@@ -372,7 +405,7 @@ export default function StaffQueuePage() {
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-[#0B2545]" />
                   <h3 className="text-base font-black text-[#0B2545] font-serif">
-                    Farmer Token Dossier: {inspectToken.token_display}
+                    Farmer Dossier: {inspectToken.token_display}
                   </h3>
                 </div>
                 <button
@@ -393,22 +426,30 @@ export default function StaffQueuePage() {
                   <span className="font-mono font-bold text-slate-900">{inspectToken.farmer_mobile_masked}</span>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-lg border">
-                  <span className="text-slate-500 block">PM-KISAN ID</span>
-                  <span className="font-mono font-bold text-slate-900">{inspectToken.farmer_id_card || "Verified"}</span>
+                  <span className="text-slate-500 block">Mandi / Centre</span>
+                  <span className="font-bold text-slate-900">{inspectToken.mandi_name || "Narela Krishi Grain Mandi (APMC)"}</span>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-lg border">
-                  <span className="text-slate-500 block">Location</span>
-                  <span className="font-bold text-slate-900">
-                    {inspectToken.farmer_village ? `${inspectToken.farmer_village}, ${inspectToken.farmer_district}` : "Local Mandi"}
-                  </span>
+                  <span className="text-slate-500 block">Slot Window</span>
+                  <span className="font-mono font-bold text-slate-900">{inspectToken.slot_date} ({inspectToken.slot_time})</span>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-lg border">
                   <span className="text-slate-500 block">Declared Crop</span>
                   <span className="font-bold text-slate-900">{inspectToken.crop}</span>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-lg border">
-                  <span className="text-slate-500 block">Estimated Quantity</span>
+                  <span className="text-slate-500 block">Declared Quantity</span>
                   <span className="font-bold text-emerald-800 text-sm">{inspectToken.quantity_quintals} Qtl</span>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-lg border">
+                  <span className="text-slate-500 block">Vehicle Information</span>
+                  <span className="font-bold text-slate-900">
+                    {inspectToken.vehicle_number ? `${inspectToken.vehicle_type || 'Vehicle'}: ${inspectToken.vehicle_number}` : "Standard Tractor / Trolley"}
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-lg border">
+                  <span className="text-slate-500 block">Booking Date</span>
+                  <span className="font-mono text-slate-900">{inspectToken.booking_date || inspectToken.slot_date}</span>
                 </div>
               </div>
 

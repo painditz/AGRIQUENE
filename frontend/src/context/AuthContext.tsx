@@ -8,7 +8,7 @@ export interface UserInfo {
   username?: string;
   fullName: string;
   mobileNumber?: string;
-  role: "FARMER" | "BUYER" | "ADMIN" | "GUEST";
+  role: "FARMER" | "MANDI_OFFICER" | "BUYER" | "ADMIN" | "GUEST";
   designation?: string;
   isRegistered: boolean;
   centreId?: number;
@@ -19,7 +19,7 @@ interface AuthContextType {
   user: UserInfo | null;
   token: string | null;
   isAuthenticated: boolean;
-  hasRole: (role: "FARMER" | "BUYER" | "ADMIN") => boolean;
+  hasRole: (role: "FARMER" | "MANDI_OFFICER" | "BUYER" | "ADMIN") => boolean;
   login: (authData: AuthResponse) => void;
   updateUser: (updated: Partial<UserInfo>) => void;
   logout: () => void;
@@ -105,8 +105,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("agriquene_user");
   };
 
-  const hasRole = (requiredRole: "FARMER" | "BUYER" | "ADMIN") => {
-    return user?.role === requiredRole;
+  const hasRole = (requiredRole: "FARMER" | "MANDI_OFFICER" | "BUYER" | "ADMIN") => {
+    if (!user) return false;
+    if (requiredRole === "MANDI_OFFICER" || requiredRole === "BUYER") {
+      return user.role === "MANDI_OFFICER" || user.role === "BUYER" || user.role === "ADMIN";
+    }
+    return user.role === requiredRole;
   };
 
   return (

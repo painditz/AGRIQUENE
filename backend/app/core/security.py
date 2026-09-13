@@ -100,7 +100,13 @@ def get_current_user(
 
 def require_role(*allowed_roles: UserRole):
     def role_guard(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in allowed_roles:
+        effective_allowed = set(allowed_roles)
+        # Interoperability between MANDI_OFFICER and legacy BUYER role
+        if UserRole.MANDI_OFFICER in effective_allowed or UserRole.BUYER in effective_allowed:
+            effective_allowed.add(UserRole.MANDI_OFFICER)
+            effective_allowed.add(UserRole.BUYER)
+            
+        if current_user.role not in effective_allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Access denied: User role '{current_user.role.value}' does not have sufficient permission."
@@ -118,10 +124,10 @@ def get_current_farmer_user(current_user: User = Depends(get_current_user)) -> U
 
 def verify_staff_centre_access(user: User, centre_id: int):
     """
-    Verifies that a BUYER / Staff user is assigned to the target centre.
+    Verifies that a MANDI_OFFICER / Staff user is assigned to the target centre.
     Admin users have system-wide oversight and are exempt.
     """
-    if user.role == UserRole.BUYER:
+    if user.role in [UserRole.MANDI_OFFICER, UserRole.BUYER]:
         buyer_profile = user.buyer_profile
         if buyer_profile and buyer_profile.centre_id and buyer_profile.centre_id != centre_id:
             raise HTTPException(

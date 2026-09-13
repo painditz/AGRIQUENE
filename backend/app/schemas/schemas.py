@@ -18,8 +18,15 @@ class VerifyOTPRequest(BaseModel):
     mobile_number: str
     otp: str = Field(..., min_length=4, max_length=6)
 
+class FarmerLoginRequest(BaseModel):
+    identifier: Optional[str] = None # Mobile number or PM-KISAN ID
+    mobile_number: Optional[str] = None
+    username: Optional[str] = None
+    password: str
+
 class StaffLoginRequest(BaseModel):
-    identifier: str # Mobile number or Employee ID
+    identifier: Optional[str] = None # Username, Mobile number or Employee ID
+    username: Optional[str] = None
     password: str
 
 class UnifiedLoginRequest(BaseModel):
@@ -198,8 +205,12 @@ class QueueItem(BaseModel):
     farmer_district: Optional[str] = None
     crop: str
     quantity_quintals: float
+    booking_date: Optional[str] = None
     slot_date: Optional[str] = None
     slot_time: str
+    mandi_name: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    vehicle_type: Optional[str] = None
     booking_reference: Optional[str] = None
     status: TokenStatus
     position: int

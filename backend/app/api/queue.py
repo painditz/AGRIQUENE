@@ -23,19 +23,25 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
     if not centre:
         raise HTTPException(status_code=404, detail="Centre not found")
         
-    # Get active tokens (PROCESSING, CALLED, ARRIVED, WAITING)
+    # Get active tokens (PROCESSING, WEIGHING, INSPECTION, CALLED, ARRIVED, WAITING, BOOKED)
     tokens = (
         db.query(Token)
         .filter(
             Token.centre_id == centre_id,
-            Token.status.in_([TokenStatus.PROCESSING, TokenStatus.CALLED, TokenStatus.ARRIVED, TokenStatus.WAITING])
+            Token.status.in_([
+                TokenStatus.PROCESSING, TokenStatus.WEIGHING, TokenStatus.INSPECTION,
+                TokenStatus.CALLED, TokenStatus.ARRIVED, TokenStatus.WAITING, TokenStatus.BOOKED
+            ])
         )
         .order_by(Token.current_position.asc(), Token.id.asc())
         .all()
     )
     
-    # Identify currently serving token: pick the most recent CALLED or PROCESSING token
-    active_served = [t for t in tokens if t.status in [TokenStatus.CALLED, TokenStatus.PROCESSING]]
+    # Identify currently serving token: pick the most recent CALLED, INSPECTION, WEIGHING, or PROCESSING token
+    active_served = [
+        t for t in tokens
+        if t.status in [TokenStatus.CALLED, TokenStatus.INSPECTION, TokenStatus.WEIGHING, TokenStatus.PROCESSING]
+    ]
     serving_token = None
     if active_served:
         serving_token = max(
@@ -46,11 +52,14 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
     # Total completed today
     completed_today = (
         db.query(Token)
-        .filter(Token.centre_id == centre_id, Token.status == TokenStatus.COMPLETED)
+        .filter(
+            Token.centre_id == centre_id,
+            Token.status.in_([TokenStatus.COMPLETED, TokenStatus.PROCUREMENT_COMPLETED])
+        )
         .count()
     )
     
-    waiting_tokens = [t for t in tokens if t.status in [TokenStatus.WAITING, TokenStatus.ARRIVED]]
+    waiting_tokens = [t for t in tokens if t.status in [TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.BOOKED]]
     
     queue_items = []
     for t in tokens:
@@ -72,9 +81,12 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
             workload_pct=centre.workload_pct
         )
         
+        booking_date = t.booking.booking_date if t.booking else (t.slot.date if t.slot else None)
         slot_date = t.slot.date if t.slot else None
         slot_time = f"{t.slot.start_time}" if t.slot else "11:00 AM"
-        counter = t.queue_entry.counter_assigned if t.queue_entry else (1 if t.status in [TokenStatus.CALLED, TokenStatus.PROCESSING] else None)
+        counter = t.queue_entry.counter_assigned if t.queue_entry else (1 if t.status in [TokenStatus.CALLED, TokenStatus.PROCESSING, TokenStatus.INSPECTION, TokenStatus.WEIGHING] else None)
+        vehicle_num = getattr(t.booking, "vehicle_number", None) if t.booking else None
+        vehicle_typ = getattr(t.booking, "vehicle_type", None) if t.booking else None
         
         queue_items.append(QueueItem(
             token_id=t.id,
@@ -88,8 +100,12 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
             farmer_district=t.farmer.district if t.farmer else None,
             crop=t.booking.crop_type if t.booking else "Wheat",
             quantity_quintals=t.booking.estimated_quantity_quintals if t.booking else 35.0,
+            booking_date=booking_date,
             slot_date=slot_date,
             slot_time=slot_time,
+            mandi_name=centre.name,
+            vehicle_number=vehicle_num,
+            vehicle_type=vehicle_typ,
             booking_reference=t.booking.booking_reference if t.booking else None,
             status=t.status,
             position=t.current_position,
@@ -262,6 +278,7 @@ async def call_next_token(
     }
 
 @router.post("/{token_id}/arrived")
+@router.post("/{token_id}/arrive")
 async def mark_farmer_arrived(
     token_id: int,
     db: Session = Depends(get_db),
@@ -333,6 +350,68 @@ async def start_token_processing(
     )
 
     return {"success": True, "message": f"Token {token.token_display} is now being processed on weighbridge."}
+
+@router.post("/{token_id}/inspection")
+async def start_token_inspection(
+    token_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
+):
+    token = db.query(Token).filter(Token.id == token_id).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+        
+    verify_staff_centre_access(current_user, token.centre_id)
+        
+    token.status = TokenStatus.INSPECTION
+    db.commit()
+
+    await manager.broadcast_to_centre(str(token.centre_id), {
+        "type": "TOKEN_INSPECTION",
+        "centre_id": token.centre_id,
+        "token_id": token.id,
+        "token_display": token.token_display,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    audit_service.log_event(
+        db, action="TOKEN_INSPECTION", entity_type="TOKEN",
+        entity_id=str(token.id),
+        details=f"Token {token.token_display} inspection started by Mandi Officer"
+    )
+
+    return {"success": True, "message": f"Token {token.token_display} is now under quality inspection."}
+
+@router.post("/{token_id}/weighing")
+async def start_token_weighing(
+    token_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
+):
+    token = db.query(Token).filter(Token.id == token_id).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+        
+    verify_staff_centre_access(current_user, token.centre_id)
+        
+    token.status = TokenStatus.WEIGHING
+    db.commit()
+
+    await manager.broadcast_to_centre(str(token.centre_id), {
+        "type": "TOKEN_WEIGHING",
+        "centre_id": token.centre_id,
+        "token_id": token.id,
+        "token_display": token.token_display,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    audit_service.log_event(
+        db, action="TOKEN_WEIGHING", entity_type="TOKEN",
+        entity_id=str(token.id),
+        details=f"Token {token.token_display} on weighbridge for gross/tare weighing"
+    )
+
+    return {"success": True, "message": f"Token {token.token_display} is on the weighbridge for weighing."}
 
 @router.post("/{token_id}/skip")
 async def skip_token(

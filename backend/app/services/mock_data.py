@@ -13,20 +13,31 @@ from ..core.security import get_password_hash
 def ensure_staff_officers(db: Session):
     """
     Ensure the two required Mandi Staff / Procurement Officer accounts exist:
-    1. Ashmit Baliyan (Username: ASHMIT, Role: UserRole.BUYER, Password: ASH@MI5T)
-    2. Aryan (Username: ARYAN, Role: UserRole.BUYER, Password: ASH@MI5T)
+    1. Ashmit Baliyan (Username: ASHMIT BALIYAN, Role: UserRole.MANDI_OFFICER, Password: ASH@MI5T)
+    2. Aryan (Username: ARYAN, Role: UserRole.MANDI_OFFICER, Password: ASH@MI5T)
+    Assigned Mandi: Narela Krishi Grain Mandi (APMC)
     Designation: Mandi Staff Officer
     """
-    first_centre = db.query(ProcurementCentre).first()
-    centre_id = first_centre.id if first_centre else None
+    narela = db.query(ProcurementCentre).filter(ProcurementCentre.name.ilike("%Narela%")).first()
+    if not narela:
+        narela = db.query(ProcurementCentre).first()
+    centre_id = narela.id if narela else 1
 
     # Officer 1: Ashmit Baliyan
-    ashmit = db.query(User).filter(func.lower(User.username) == "ashmit").first()
+    ashmit = (
+        db.query(User)
+        .filter(
+            (func.lower(User.username) == "ashmit baliyan") |
+            (func.lower(User.username) == "ashmit") |
+            (User.email == "ashmit.baliyan@agriquene.gov.in")
+        )
+        .first()
+    )
     if not ashmit:
         ashmit = User(
-            username="ASHMIT",
+            username="ASHMIT BALIYAN",
             full_name="Ashmit Baliyan",
-            role=UserRole.BUYER,
+            role=UserRole.MANDI_OFFICER,
             email="ashmit.baliyan@agriquene.gov.in",
             mobile_number="9811223301",
             hashed_password=get_password_hash("ASH@MI5T"),
@@ -44,8 +55,9 @@ def ensure_staff_officers(db: Session):
         )
         db.add(ashmit_buyer)
     else:
+        ashmit.username = "ASHMIT BALIYAN"
         ashmit.full_name = "Ashmit Baliyan"
-        ashmit.role = UserRole.BUYER
+        ashmit.role = UserRole.MANDI_OFFICER
         ashmit.hashed_password = get_password_hash("ASH@MI5T")
         ashmit.is_active = True
         buyer_rec = db.query(Buyer).filter(Buyer.user_id == ashmit.id).first()
@@ -61,17 +73,23 @@ def ensure_staff_officers(db: Session):
             db.add(buyer_rec)
         else:
             buyer_rec.designation = "Mandi Staff Officer"
+            buyer_rec.centre_id = centre_id
             buyer_rec.is_active = True
-            if centre_id and not buyer_rec.centre_id:
-                buyer_rec.centre_id = centre_id
 
     # Officer 2: Aryan
-    aryan = db.query(User).filter(func.lower(User.username) == "aryan").first()
+    aryan = (
+        db.query(User)
+        .filter(
+            (func.lower(User.username) == "aryan") |
+            (User.email == "aryan@agriquene.gov.in")
+        )
+        .first()
+    )
     if not aryan:
         aryan = User(
             username="ARYAN",
             full_name="Aryan",
-            role=UserRole.BUYER,
+            role=UserRole.MANDI_OFFICER,
             email="aryan@agriquene.gov.in",
             mobile_number="9811223302",
             hashed_password=get_password_hash("ASH@MI5T"),
@@ -89,8 +107,9 @@ def ensure_staff_officers(db: Session):
         )
         db.add(aryan_buyer)
     else:
+        aryan.username = "ARYAN"
         aryan.full_name = "Aryan"
-        aryan.role = UserRole.BUYER
+        aryan.role = UserRole.MANDI_OFFICER
         aryan.hashed_password = get_password_hash("ASH@MI5T")
         aryan.is_active = True
         buyer_rec = db.query(Buyer).filter(Buyer.user_id == aryan.id).first()
@@ -106,9 +125,8 @@ def ensure_staff_officers(db: Session):
             db.add(buyer_rec)
         else:
             buyer_rec.designation = "Mandi Staff Officer"
+            buyer_rec.centre_id = centre_id
             buyer_rec.is_active = True
-            if centre_id and not buyer_rec.centre_id:
-                buyer_rec.centre_id = centre_id
 
     db.commit()
 

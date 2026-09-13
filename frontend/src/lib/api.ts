@@ -13,7 +13,7 @@ export interface AuthResponse {
   username?: string;
   full_name: string;
   mobile_number?: string;
-  role: "FARMER" | "BUYER" | "ADMIN";
+  role: "FARMER" | "MANDI_OFFICER" | "BUYER" | "ADMIN";
   designation?: string;
   is_registered: boolean;
   centre_id?: number;
@@ -141,10 +141,14 @@ export interface QueueItem {
   farmer_district?: string;
   crop: string;
   quantity_quintals: number;
+  booking_date?: string;
   slot_date?: string;
   slot_time: string;
+  mandi_name?: string;
+  vehicle_number?: string;
+  vehicle_type?: string;
   booking_reference?: string;
-  status: "WAITING" | "ARRIVED" | "CALLED" | "PROCESSING" | "COMPLETED" | "SKIPPED";
+  status: "BOOKED" | "WAITING" | "ARRIVED" | "CALLED" | "INSPECTION" | "WEIGHING" | "PROCESSING" | "COMPLETED" | "PROCUREMENT_COMPLETED" | "SKIPPED" | "CANCELLED";
   position: number;
   estimated_wait_min: number;
   expected_turn_time: string;
@@ -426,6 +430,13 @@ class ApiClient {
     });
   }
 
+  async loginFarmerPassword(identifier: string, password: string): Promise<AuthResponse> {
+    return this.request<AuthResponse>("/auth/farmer/login", {
+      method: "POST",
+      body: JSON.stringify({ identifier, password }),
+    });
+  }
+
   async loginBuyer(identifier: string, password: string): Promise<AuthResponse> {
     return this.request<AuthResponse>("/auth/buyer/login", {
       method: "POST",
@@ -445,7 +456,7 @@ class ApiClient {
     username?: string;
     full_name: string;
     mobile_number?: string;
-    role: "FARMER" | "BUYER" | "ADMIN";
+    role: "FARMER" | "MANDI_OFFICER" | "BUYER" | "ADMIN";
     designation?: string;
     is_registered: boolean;
     centre_id?: number;
@@ -655,6 +666,14 @@ class ApiClient {
 
   async startProcessingToken(tokenId: number): Promise<any> {
     return this.request(`/queue/${tokenId}/processing`, { method: "POST" });
+  }
+
+  async startInspection(tokenId: number): Promise<any> {
+    return this.request(`/queue/${tokenId}/inspection`, { method: "POST" });
+  }
+
+  async startWeighing(tokenId: number): Promise<any> {
+    return this.request(`/queue/${tokenId}/weighing`, { method: "POST" });
   }
 
   async skipToken(tokenId: number): Promise<any> {

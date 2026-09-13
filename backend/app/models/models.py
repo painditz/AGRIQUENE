@@ -9,6 +9,7 @@ from ..db.session import Base
 
 class UserRole(str, enum.Enum):
     FARMER = "FARMER"
+    MANDI_OFFICER = "MANDI_OFFICER"
     BUYER = "BUYER"
     ADMIN = "ADMIN"
 
@@ -23,8 +24,11 @@ class TokenStatus(str, enum.Enum):
     WAITING = "WAITING"
     ARRIVED = "ARRIVED"
     CALLED = "CALLED"
+    INSPECTION = "INSPECTION"
+    WEIGHING = "WEIGHING"
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
+    PROCUREMENT_COMPLETED = "PROCUREMENT_COMPLETED"
     SKIPPED = "SKIPPED"
     CANCELLED = "CANCELLED"
 

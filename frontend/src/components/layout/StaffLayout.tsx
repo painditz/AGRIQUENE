@@ -60,7 +60,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   }
 
   // RBAC: Strict protection for Staff Operations
-  if (!user || (user.role !== "BUYER" && user.role !== "ADMIN")) {
+  if (!user || (user.role !== "MANDI_OFFICER" && user.role !== "BUYER" && user.role !== "ADMIN")) {
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col">
         <div className="bg-[#0B2545] text-white py-2.5 px-4 border-b border-[#1E3A8A] shadow-sm">
