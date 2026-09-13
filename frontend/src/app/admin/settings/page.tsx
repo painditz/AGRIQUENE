@@ -9,6 +9,9 @@ import {
   Cpu, CheckCircle2, Save, RefreshCw
 } from "lucide-react";
 
+import { adminApi } from "@/lib/api";
+import { KeyRound, Lock } from "lucide-react";
+
 export default function AdminSettingsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -19,6 +22,13 @@ export default function AdminSettingsPage() {
   const [activeCountersDefault, setActiveCountersDefault] = useState("4");
   const [saving, setSaving] = useState(false);
 
+  // Credentials State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [newEmployeeId, setNewEmployeeId] = useState("");
+  const [updatingCreds, setUpdatingCreds] = useState(false);
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -26,6 +36,34 @@ export default function AdminSettingsPage() {
       setSaving(false);
       showToast("System configuration parameters saved successfully", "success");
     }, 400);
+  };
+
+  const handleUpdateCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      showToast("New passwords do not match.", "error");
+      return;
+    }
+    if (newPassword.length < 6) {
+      showToast("New password must be at least 6 characters.", "error");
+      return;
+    }
+    setUpdatingCreds(true);
+    try {
+      const res = await adminApi.updateCredentials({
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_employee_id: newEmployeeId.trim() || undefined,
+      });
+      showToast(res.message || "Credentials updated successfully", "success");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      showToast(err.message || "Failed to update credentials", "error");
+    } finally {
+      setUpdatingCreds(false);
+    }
   };
 
   return (
@@ -129,13 +167,94 @@ export default function AdminSettingsPage() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#0B2545] hover:bg-[#133E68] text-white rounded-xl font-bold text-sm shadow-md transition disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#0B2545] hover:bg-[#133E68] text-white rounded-xl font-bold text-sm shadow-md transition disabled:opacity-50 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               {saving ? "Saving Changes..." : "Save System Parameters"}
             </button>
           </div>
         </form>
+
+        {/* Admin Credentials & Security Card */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 space-y-4">
+          <div className="border-b pb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-amber-600" />
+              <h2 className="text-base font-black text-[#0B2545] font-serif">
+                Administrator Security & Password Management
+              </h2>
+            </div>
+            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+              Bcrypt Hashed Storage
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-600">
+            Securely update the administrative login credentials. All passwords are encrypted with bcrypt. Plaintext credentials are never saved.
+          </p>
+
+          <form onSubmit={handleUpdateCredentials} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">New Employee / Admin ID (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. AGQ-ADMIN-2026"
+                value={newEmployeeId}
+                onChange={(e) => setNewEmployeeId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg font-mono focus:ring-2 focus:ring-[#0B2545]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Current Password *</label>
+              <input
+                type="password"
+                required
+                placeholder="Enter existing password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#0B2545]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">New Secure Password *</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                placeholder="Minimum 6 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#0B2545]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Confirm New Password *</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                placeholder="Re-type new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#0B2545]"
+              />
+            </div>
+
+            <div className="md:col-span-2 flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={updatingCreds}
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-bold text-sm shadow-md transition disabled:opacity-50 cursor-pointer"
+              >
+                <Lock className="w-4 h-4" />
+                {updatingCreds ? "Updating Credentials..." : "Update Administrator Password"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </AdminLayout>
   );

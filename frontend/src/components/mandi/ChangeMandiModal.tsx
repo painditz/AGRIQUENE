@@ -84,6 +84,22 @@ export function ChangeMandiModal({
   const handleSelect = async (centre: CentreItem) => {
     setUpdatingId(centre.id);
     try {
+      // Check if farmer has an active token at another mandi
+      const currentToken = await api.getFarmerCurrentToken().catch(() => null);
+      if (
+        currentToken &&
+        currentToken.centre_id !== centre.id &&
+        ["WAITING", "ARRIVED", "CALLED", "PROCESSING"].includes(currentToken.status)
+      ) {
+        const proceed = window.confirm(
+          `Notice: You currently have an active Token (${currentToken.token_display}) at your scheduled mandi.\n\nYour existing appointment remains safely registered at that centre until processed or cancelled.\n\nDo you wish to set "${centre.name}" as your preferred mandi for future bookings?`
+        );
+        if (!proceed) {
+          setUpdatingId(null);
+          return;
+        }
+      }
+
       await api.updatePreferredCentre(centre.id);
       updateUser({ centreId: centre.id, centreName: centre.name });
 

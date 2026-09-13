@@ -885,6 +885,17 @@ class ApiClient {
   async getSecuritySummary(): Promise<any> {
     return this.request("/admin/security/summary");
   }
+
+  async updateAdminCredentials(data: {
+    current_password: string;
+    new_password: string;
+    new_employee_id?: string;
+  }): Promise<any> {
+    return this.request("/admin/credentials", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const api = new ApiClient();
@@ -949,4 +960,5 @@ export const adminApi = {
   getSecuritySummary: () => api.getSecuritySummary(),
   getAnalyticsOverview: () => api.getAnalyticsOverview(),
   getMLMetrics: () => api.getMLMetrics(),
+  updateCredentials: (data: { current_password: string; new_password: string; new_employee_id?: string }) => api.updateAdminCredentials(data),
 };

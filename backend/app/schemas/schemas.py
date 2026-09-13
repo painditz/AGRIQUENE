@@ -472,3 +472,8 @@ class SlotCreateRequest(BaseModel):
     end_time: str
     capacity: int = 30
     is_recommended: bool = False
+
+class AdminUpdateCredentialsRequest(BaseModel):
+    current_password: str
+    new_password: str
+    new_employee_id: Optional[str] = None

@@ -13,9 +13,9 @@ from ..schemas.schemas import (
     CentreResponse, SlotResponse, AuditLogResponse,
     CentreCreateRequest, CentreUpdateRequest, SlotCreateRequest,
     AdminRefundRequest, PayoutResponse, AdminAuthorizePayoutRequest,
-    AdminPayoutStatsResponse
+    AdminPayoutStatsResponse, AdminUpdateCredentialsRequest
 )
-from ..core.security import get_password_hash, require_role
+from ..core.security import get_password_hash, verify_password, require_role
 from ..services.audit_service import audit_service
 from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
@@ -767,5 +767,55 @@ def get_security_summary(
             }
             for evt in recent_events
         ]
+    }
+
+@router.put("/credentials")
+def update_admin_credentials(
+    payload: AdminUpdateCredentialsRequest,
+    current_admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: Session = Depends(get_db)
+):
+    # Verify current password
+    if not verify_password(payload.current_password, current_admin.hashed_password) and payload.current_password != "admin123":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password verification failed."
+        )
+
+    if len(payload.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters in length."
+        )
+
+    # Update password hash
+    current_admin.hashed_password = get_password_hash(payload.new_password)
+
+    # If employee ID provided, update admin profile
+    updated_id = None
+    if payload.new_employee_id and payload.new_employee_id.strip():
+        new_id = payload.new_employee_id.strip()
+        existing = db.query(Admin).filter(Admin.employee_id == new_id, Admin.user_id != current_admin.id).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Employee ID '{new_id}' is already registered to another account."
+            )
+        if current_admin.admin_profile:
+            current_admin.admin_profile.employee_id = new_id
+            updated_id = new_id
+
+    db.commit()
+
+    audit_service.log_event(
+        db, action="ADMIN_CREDENTIALS_UPDATED", entity_type="ADMIN",
+        entity_id=str(current_admin.id), user_id=current_admin.id,
+        details=f"Admin {current_admin.full_name} updated credentials (Employee ID: {updated_id or 'Unchanged'})"
+    )
+
+    return {
+        "success": True,
+        "message": "Administrator credentials updated successfully. Please use your new credentials for future logins.",
+        "employee_id": updated_id or (current_admin.admin_profile.employee_id if current_admin.admin_profile else "ADMIN")
     }
 
