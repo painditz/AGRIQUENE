@@ -1,23 +1,45 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 import random
 from ..db.session import get_db
 from ..models.models import (
-    User, Farmer, Booking, Token, TokenStatus,
+    User, Farmer, Booking, Token, TokenStatus, BookingStatus, Slot, QueueEntry,
     ProcurementRecord, Payment, ProcurementCentre, PaymentStatus
 )
 from ..schemas.schemas import (
     FarmerRegisterRequest, FarmerProfileResponse,
     TokenResponse, ProcurementResponse, PaymentResponse, BankDetailsUpdateRequest
 )
-from ..core.security import get_current_user
+from ..core.security import get_current_user, create_access_token, get_password_hash, decode_access_token
 from ..models.models import UserRole
 from ..services.audit_service import audit_service
 from ..services.eta_service import eta_service
 
 router = APIRouter(prefix="/farmers", tags=["Farmer Services"])
+
+
+def get_optional_farmer_user(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    if not authorization:
+        return None
+    token_str = authorization.replace("Bearer ", "").strip()
+    if not token_str or token_str in ["null", "undefined"]:
+        return None
+    try:
+        payload = decode_access_token(token_str)
+        if payload and "sub" in payload:
+            u = db.query(User).filter(User.id == int(payload["sub"])).first()
+            if u and u.is_active:
+                return u
+    except Exception:
+        pass
+    return None
 
 def get_current_farmer_user(user: User = Depends(get_current_user)) -> User:
     if user.role not in [UserRole.FARMER, UserRole.ADMIN]:
@@ -181,35 +203,73 @@ def update_preferred_centre(
 @router.post("/register", response_model=FarmerProfileResponse)
 def register_farmer_profile(
     payload: FarmerRegisterRequest,
-    user: User = Depends(get_current_farmer_user),
+    user: Optional[User] = Depends(get_optional_farmer_user),
     db: Session = Depends(get_db)
 ):
-    user.full_name = payload.full_name
-    
+    """
+    Registers or updates a farmer profile.
+    Supports both authenticated farmers and direct registration from unauthenticated state.
+    Stores preferred_centre_id and preferred_slot in the database.
+    Optionally generates a live queue Token and Booking record.
+    """
+    issued_access_token: Optional[str] = None
+
+    if not user:
+        if not payload.mobile_number:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Mobile number is required for farmer registration."
+            )
+        clean_mob = "".join([c for c in payload.mobile_number if c.isdigit()])[-10:]
+        if len(clean_mob) < 10:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please enter a valid 10-digit Indian mobile number."
+            )
+
+        existing_user = db.query(User).filter(User.mobile_number == clean_mob).first()
+        if existing_user:
+            if existing_user.role != UserRole.FARMER:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Mobile number {clean_mob} is already registered as {existing_user.role.value}. Please use a farmer mobile number."
+                )
+            user = existing_user
+            user.full_name = payload.full_name
+        else:
+            user = User(
+                mobile_number=clean_mob,
+                full_name=payload.full_name,
+                role=UserRole.FARMER,
+                hashed_password=get_password_hash("farmer123"),
+                is_active=True
+            )
+            db.add(user)
+            db.flush()
+
+        issued_access_token = create_access_token(subject=user.id, role=UserRole.FARMER.value)
+    else:
+        user.full_name = payload.full_name
+
     profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
     if not profile:
-        profile = Farmer(user_id=user.id)
+        profile = Farmer(user_id=user.id, district=payload.district, state=payload.state)
         db.add(profile)
-        
-    # Determine unique farmer_id_card
+        db.flush()
+
     raw_card = (payload.farmer_id_card or "").strip()
-    
-    # State code helper for ID generation
     state_code = "UP"
     if payload.state:
         st_clean = "".join([c for c in payload.state if c.isalnum()]).upper()
         if len(st_clean) >= 2:
             state_code = st_clean[:2]
-            
+
     mob_suffix = user.mobile_number[-4:] if user.mobile_number and len(user.mobile_number) >= 4 else f"{user.id:04d}"
 
-    # If the payload sends the seed demo default ("PMK-UP-2026-9481") and caller is not Ramesh (user_id 1),
-    # treat it as unassigned / default request so we generate a unique card for this new user
     if raw_card == "PMK-UP-2026-9481" and user.id != 1:
         raw_card = ""
 
     if raw_card:
-        # User explicitly supplied a custom ID card. Ensure no other farmer is using it.
         duplicate = db.query(Farmer).filter(
             Farmer.farmer_id_card == raw_card,
             Farmer.user_id != user.id
@@ -217,13 +277,11 @@ def register_farmer_profile(
         if duplicate:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Farmer ID / PM-KISAN ID '{raw_card}' is already registered to another account. Please enter your unique PM-KISAN / KCC number."
+                detail=f"Farmer ID / PM-KISAN ID '{raw_card}' is already registered to another account."
             )
         candidate_card = raw_card
     else:
-        # Generate unique candidate card
         candidate_card = f"PMK-{state_code}-2026-{mob_suffix}"
-        # If candidate card already in use by another user, generate a unique variant
         attempt = 1
         while db.query(Farmer).filter(Farmer.farmer_id_card == candidate_card, Farmer.user_id != user.id).first():
             candidate_card = f"PMK-{state_code}-2026-{user.id:02d}{mob_suffix}-{attempt}"
@@ -240,7 +298,9 @@ def register_farmer_profile(
     profile.preferred_crop = payload.preferred_crop
     if payload.preferred_centre_id is not None:
         profile.preferred_centre_id = payload.preferred_centre_id
-    
+    if payload.preferred_slot:
+        profile.preferred_slot = payload.preferred_slot
+
     if payload.bank_name:
         profile.bank_name = payload.bank_name
     if payload.bank_account_number:
@@ -252,37 +312,113 @@ def register_farmer_profile(
         profile.bank_account_masked = f"•••• •••• {user.mobile_number[-4:] if user.mobile_number else '1234'}"
     if payload.ifsc_code:
         profile.ifsc_code = payload.ifsc_code.upper().strip()
-    
+
     try:
         db.commit()
-    except IntegrityError as exc:
+    except IntegrityError:
         db.rollback()
-        # After rollback, the profile object may be expunged. Re-merge it.
         profile = db.merge(profile)
-        # Re-apply user name since it was rolled back
         user = db.merge(user)
         user.full_name = payload.full_name
-        # Fallback deduplication for race conditions
         profile.farmer_id_card = f"PMK-{state_code}-2026-{user.id:04d}-{random.randint(100, 999)}"
-        try:
-            db.commit()
-        except Exception as inner_exc:
-            db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unable to register profile due to a database constraint: {str(inner_exc)}"
-            )
-    
+        db.commit()
+
     db.refresh(profile)
     db.refresh(user)
-    
+
+    token_display = None
+    token_number = None
+
+    if (payload.generate_token or payload.preferred_slot) and profile.preferred_centre_id:
+        centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == profile.preferred_centre_id).first()
+        if centre:
+            active_tok = db.query(Token).filter(
+                Token.farmer_id == profile.id,
+                Token.centre_id == centre.id,
+                Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING])
+            ).first()
+
+            if active_tok:
+                token_display = active_tok.token_display
+                token_number = active_tok.token_number
+            else:
+                today_str = datetime.utcnow().strftime("%Y-%m-%d")
+                slot = db.query(Slot).filter(Slot.centre_id == centre.id, Slot.date == today_str).first()
+                if not slot:
+                    start_t = profile.preferred_slot.split(" - ")[0] if profile.preferred_slot and " - " in profile.preferred_slot else "09:00 AM"
+                    end_t = profile.preferred_slot.split(" - ")[1] if profile.preferred_slot and " - " in profile.preferred_slot else "11:00 AM"
+                    slot = Slot(
+                        centre_id=centre.id,
+                        date=today_str,
+                        start_time=start_t,
+                        end_time=end_t,
+                        max_capacity=30,
+                        available_count=29
+                    )
+                    db.add(slot)
+                    db.flush()
+
+                waiting_count = (
+                    db.query(Token)
+                    .filter(
+                        Token.centre_id == centre.id,
+                        Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING])
+                    )
+                    .count()
+                )
+                pos = waiting_count + 1
+                next_tok_num = (db.query(func.max(Token.token_number)).filter(Token.centre_id == centre.id).scalar() or 0) + 1
+                clean_code = centre.code.split('-')[-2] if (centre.code and '-' in centre.code) else (centre.code[:4].upper() if centre.code else "MNDI")
+                booking_ref = f"AGQ-2026-{clean_code}-{next_tok_num}"
+
+                booking = Booking(
+                    booking_reference=booking_ref,
+                    farmer_id=profile.id,
+                    centre_id=centre.id,
+                    slot_id=slot.id,
+                    crop_type=profile.preferred_crop or "Wheat",
+                    estimated_quantity_quintals=float(profile.land_acres or 2.5) * 12.0,
+                    season="Rabi 2026",
+                    status=BookingStatus.CONFIRMED,
+                    booking_date=slot.date
+                )
+                db.add(booking)
+                db.flush()
+
+                token_disp = f"#{next_tok_num}"
+                token_obj = Token(
+                    token_number=next_tok_num,
+                    token_display=token_disp,
+                    booking_id=booking.id,
+                    farmer_id=profile.id,
+                    centre_id=centre.id,
+                    slot_id=slot.id,
+                    status=TokenStatus.WAITING,
+                    current_position=pos,
+                    initial_position=pos
+                )
+                db.add(token_obj)
+                db.flush()
+
+                queue_entry = QueueEntry(
+                    centre_id=centre.id,
+                    token_id=token_obj.id,
+                    position=pos,
+                    is_active=True
+                )
+                db.add(queue_entry)
+                db.commit()
+
+                token_display = token_disp
+                token_number = next_tok_num
+
     centre_name = profile.preferred_centre.name if profile.preferred_centre else None
     audit_service.log_event(
         db, action="FARMER_REGISTERED", entity_type="FARMER",
         entity_id=str(profile.id), user_id=user.id,
-        details=f"Farmer {user.full_name} ({user.mobile_number}) registered profile in {profile.district}, {profile.state} (Mandi: {centre_name or 'Not assigned'})"
+        details=f"Farmer {user.full_name} ({user.mobile_number}) registered in {profile.district}, {profile.state} (Mandi: {centre_name or 'None'}, Slot: {profile.preferred_slot})"
     )
-    
+
     return FarmerProfileResponse(
         id=profile.id,
         user_id=user.id,
@@ -297,10 +433,15 @@ def register_farmer_profile(
         pin_code=profile.pin_code,
         land_acres=profile.land_acres,
         bank_account_masked=profile.bank_account_masked,
+        bank_name=profile.bank_name,
         ifsc_code=profile.ifsc_code,
         preferred_crop=profile.preferred_crop,
         preferred_centre_id=profile.preferred_centre_id,
         preferred_centre_name=centre_name,
+        preferred_slot=profile.preferred_slot,
+        token_display=token_display,
+        token_number=token_number,
+        access_token=issued_access_token,
         created_at=profile.created_at
     )
 

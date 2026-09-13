@@ -131,15 +131,21 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
     )
 
 @router.post("/call-next")
+@router.post("/{token_id}/call")
+@router.post("/call/{token_id}")
 async def call_next_token(
-    payload: QueueCallRequest,
+    payload: Optional[QueueCallRequest] = None,
+    token_id: Optional[int] = None,
     centre_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
+    target_token_id = token_id or (payload.token_id if payload else None)
+    counter_num = (payload.counter_number if payload and payload.counter_number else 1)
+
     # If token_id specified, resolve centre from token
-    if payload.token_id:
-        target_token = db.query(Token).filter(Token.id == payload.token_id).first()
+    if target_token_id:
+        target_token = db.query(Token).filter(Token.id == target_token_id).first()
         if target_token:
             centre_id = target_token.centre_id
 
@@ -151,14 +157,14 @@ async def call_next_token(
     verify_staff_centre_access(current_user, centre.id)
         
     # If a specific token_id was requested
-    if payload.token_id:
-        target_token = db.query(Token).filter(Token.id == payload.token_id, Token.centre_id == centre_id).first()
+    if target_token_id:
+        target_token = db.query(Token).filter(Token.id == target_token_id, Token.centre_id == centre.id).first()
     else:
         # Find next waiting or arrived token with lowest position
         target_token = (
             db.query(Token)
             .filter(
-                Token.centre_id == centre_id,
+                Token.centre_id == centre.id,
                 Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED])
             )
             .order_by(Token.current_position.asc(), Token.id.asc())
@@ -172,7 +178,7 @@ async def call_next_token(
     prev_active = (
         db.query(Token)
         .filter(
-            Token.centre_id == centre_id,
+            Token.centre_id == centre.id,
             Token.status.in_([TokenStatus.CALLED, TokenStatus.PROCESSING]),
             Token.id != target_token.id
         )
@@ -181,7 +187,7 @@ async def call_next_token(
     for p in prev_active:
         # If assigned to this counter or counter unassigned
         p_counter = p.queue_entry.counter_assigned if p.queue_entry else 1
-        if p_counter == payload.counter_number:
+        if p_counter == counter_num:
             p.status = TokenStatus.COMPLETED
             p.completed_at = datetime.utcnow()
             p.current_position = 0
@@ -195,14 +201,14 @@ async def call_next_token(
     target_token.current_position = 0
     
     if target_token.queue_entry:
-        target_token.queue_entry.counter_assigned = payload.counter_number
+        target_token.queue_entry.counter_assigned = counter_num
         target_token.queue_entry.position = 0
         
     # Advance queue: Decrement position for all remaining waiting tokens
     remaining_waiting = (
         db.query(Token)
         .filter(
-            Token.centre_id == centre_id,
+            Token.centre_id == centre.id,
             Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED]),
             Token.id != target_token.id
         )
@@ -223,12 +229,12 @@ async def call_next_token(
     if called_farmer_user:
         sms_service.notify_token_called(
             db, called_farmer_user.mobile_number,
-            target_token.token_display, payload.counter_number
+            target_token.token_display, counter_num
         )
         notification_service.create_notification(
             db, called_farmer_user.id,
             "Your Token Has Been Called!",
-            f"Please proceed immediately to Counter #{payload.counter_number} with your produce.",
+            f"Please proceed immediately to Counter #{counter_num} with your produce.",
             "TOKEN_CALLED"
         )
 
@@ -258,7 +264,7 @@ async def call_next_token(
         "token_id": target_token.id,
         "token_number": target_token.token_number,
         "token_display": target_token.token_display,
-        "counter_number": payload.counter_number,
+        "counter_number": counter_num,
         "timestamp": datetime.now().isoformat(),
         "total_waiting": len(remaining_waiting)
     })
@@ -266,14 +272,14 @@ async def call_next_token(
     audit_service.log_event(
         db, action="TOKEN_CALLED", entity_type="TOKEN",
         entity_id=str(target_token.id),
-        details=f"Token {target_token.token_display} called to Counter #{payload.counter_number} at {centre.name}"
+        details=f"Token {target_token.token_display} called to Counter #{counter_num} at {centre.name}"
     )
 
     return {
         "success": True,
-        "message": f"Token {target_token.token_display} called at Counter #{payload.counter_number}",
+        "message": f"Token {target_token.token_display} called at Counter #{counter_num}",
         "called_token": target_token.token_display,
-        "counter": payload.counter_number,
+        "counter": counter_num,
         "remaining_waiting": len(remaining_waiting)
     }
 
@@ -282,7 +288,7 @@ async def call_next_token(
 async def mark_farmer_arrived(
     token_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
@@ -320,10 +326,11 @@ async def mark_farmer_arrived(
     return {"success": True, "message": f"Token {token.token_display} marked as arrived at centre gate."}
 
 @router.post("/{token_id}/processing")
+@router.post("/{token_id}/process")
 async def start_token_processing(
     token_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
@@ -417,7 +424,7 @@ async def start_token_weighing(
 async def skip_token(
     token_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:
@@ -471,7 +478,7 @@ async def skip_token(
 async def complete_token(
     token_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
     token = db.query(Token).filter(Token.id == token_id).first()
     if not token:

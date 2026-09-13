@@ -52,6 +52,7 @@ class AuthTokenResponse(BaseModel):
 # -------------------------------------------------------------
 class FarmerRegisterRequest(BaseModel):
     full_name: str
+    mobile_number: Optional[str] = None
     farmer_id_card: Optional[str] = None
     father_name: Optional[str] = None
     address: Optional[str] = None
@@ -62,6 +63,8 @@ class FarmerRegisterRequest(BaseModel):
     land_acres: float = 2.5
     preferred_crop: str = "Wheat"
     preferred_centre_id: Optional[int] = None
+    preferred_slot: Optional[str] = None
+    generate_token: Optional[bool] = False
     bank_name: Optional[str] = None
     bank_account_number: Optional[str] = None
     ifsc_code: Optional[str] = None
@@ -85,6 +88,10 @@ class FarmerProfileResponse(BaseModel):
     preferred_crop: str
     preferred_centre_id: Optional[int] = None
     preferred_centre_name: Optional[str] = None
+    preferred_slot: Optional[str] = None
+    token_display: Optional[str] = None
+    token_number: Optional[int] = None
+    access_token: Optional[str] = None
     created_at: datetime
 
     class Config:

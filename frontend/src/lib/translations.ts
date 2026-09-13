@@ -211,6 +211,16 @@ export const translations = {
     errCropRequired: "Please select your primary crop for procurement.",
     errLandRequired: "Please enter a valid landholding acreage.",
     errMandiRequired: "Please select your preferred procurement mandi centre.",
+    mandiSearchPlaceholder: "Search mandi by name, city, district or state (e.g. Narela, Delhi, Meerut)...",
+    lblPreferredSlot: "Select Preferred Time Slot *",
+    lblSelectedMandi: "Currently Selected Mandi:",
+    lblGenerateTokenNow: "Generate Live Queue Procurement Token upon registration",
+    lblMobileNumber: "10-Digit Mobile Number *",
+    phMobileNumber: "e.g. 9876543210",
+    errMobileRequired: "Please enter a valid 10-digit Indian mobile number.",
+    interactiveMapTitle: "Interactive Mandi Radar & Travel Route",
+    clickPinToSelect: "Click any mandi marker to select",
+    noMandisFoundMatching: "No mandis found matching your search. Clear search or try another district.",
 
     // Dynamic Status Strings
     dynOPEN: "Open",
@@ -447,6 +457,16 @@ export const translations = {
     errCropRequired: "कृपया खरीद हेतु अपनी मुख्य फसल का चयन करें।",
     errLandRequired: "कृपया वैध कृषि भूमि (एकड़) दर्ज करें।",
     errMandiRequired: "कृपया अपना पसंदीदा खरीद मंडी केंद्र चुनें।",
+    mandiSearchPlaceholder: "मंडी के नाम, शहर, जिले या राज्य से खोजें (उदा. नरेला, दिल्ली, मेरठ)...",
+    lblPreferredSlot: "पसंदीदा समय स्लॉट चुनें *",
+    lblSelectedMandi: "वर्तमान में चयनित मंडी:",
+    lblGenerateTokenNow: "पंजीकरण के साथ लाइव कतार खरीद टोकन तुरंत जारी करें",
+    lblMobileNumber: "10 अंकों का मोबाइल नंबर *",
+    phMobileNumber: "उदा. 9876543210",
+    errMobileRequired: "कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।",
+    interactiveMapTitle: "इंटरएक्टिव मंडी रडार एवं मार्ग मानचित्र",
+    clickPinToSelect: "चयन करने के लिए किसी भी मंडी पिन पर क्लिक करें",
+    noMandisFoundMatching: "आपकी खोज के अनुसार कोई मंडी नहीं मिली। खोज साफ़ करें या कोई अन्य जिला आज़माएँ।",
 
     // Dynamic Status Strings
     dynOPEN: "खुला",

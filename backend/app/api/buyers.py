@@ -14,7 +14,7 @@ from ..services.audit_service import audit_service
 router = APIRouter(
     prefix="/buyers",
     tags=["Buyer Dashboard"],
-    dependencies=[Depends(require_role(UserRole.BUYER, UserRole.ADMIN))]
+    dependencies=[Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))]
 )
 
 @router.get("/dashboard")
@@ -100,7 +100,7 @@ async def update_active_counters(
     centre_id: int = Body(..., embed=True),
     active_counters: int = Body(..., embed=True),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
     centre = db.query(ProcurementCentre).filter(ProcurementCentre.id == centre_id).first()
     if not centre:

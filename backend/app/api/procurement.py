@@ -23,7 +23,7 @@ router = APIRouter(prefix="/procurement", tags=["Procurement Execution"])
 async def submit_procurement(
     payload: ProcurementSubmitRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.BUYER, UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.MANDI_OFFICER, UserRole.BUYER, UserRole.ADMIN))
 ):
     token = db.query(Token).filter(Token.id == payload.token_id).first()
     if not token:

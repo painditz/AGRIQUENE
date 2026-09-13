@@ -107,6 +107,7 @@ class Farmer(Base):
     bank_account_number = Column(String(50), nullable=True, default=None)
     preferred_crop = Column(String(50), default="Wheat")
     preferred_centre_id = Column(Integer, ForeignKey("procurement_centres.id"), nullable=True)
+    preferred_slot = Column(String(50), nullable=True, default="09:00 AM - 11:00 AM")
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="farmer_profile")

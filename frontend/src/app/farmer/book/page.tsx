@@ -10,6 +10,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
 import { ChangeMandiModal } from "@/components/mandi/ChangeMandiModal";
+import { LeafletMandiMap, FarmerLocation } from "@/components/map/LeafletMandiMap";
 import {
   CalendarPlus, Building2, Wheat, Scale, Calendar,
   Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Sparkles, MapPin, Search
@@ -26,6 +27,7 @@ function BookSlotContent() {
 
   const [centres, setCentres] = useState<CentreItem[]>([]);
   const [selectedCentreId, setSelectedCentreId] = useState<number | null>(preselectedCentre ? parseInt(preselectedCentre) : null);
+  const [farmerLocation, setFarmerLocation] = useState<FarmerLocation | null>(null);
   const [showMandiModal, setShowMandiModal] = useState(false);
   const [crops, setCrops] = useState<CropItem[]>([]);
   const [selectedCrop, setSelectedCrop] = useState<string>("");
@@ -41,6 +43,23 @@ function BookSlotContent() {
 
   // Load Centres & Crops from backend database
   useEffect(() => {
+    // Attempt safe browser geolocation if permitted (falls back gracefully)
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setFarmerLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            name: user?.fullName || "Your Current Location",
+          });
+        },
+        () => {
+          // Permission denied or unavailable: Map cleanly displays all mandis
+        },
+        { timeout: 8000, maximumAge: 300000 }
+      );
+    }
+
     async function fetchCentresAndCrops() {
       try {
         const [centresData, cropsData] = await Promise.all([
@@ -236,6 +255,27 @@ function BookSlotContent() {
                   + Click to choose your Procurement Centre (Mandi)
                 </button>
               )}
+            </div>
+
+                        {/* Interactive Mandi Radar & Navigation Map (Restored) */}
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#0B2545]" />
+                  <span>{t("interactiveMapTitle")}</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium">{t("clickPinToSelect")}</span>
+              </div>
+              <LeafletMandiMap
+                centres={centres}
+                farmerLocation={farmerLocation}
+                selectedCentreId={selectedCentreId}
+                onSelectCentre={(centre) => {
+                  setSelectedCentreId(centre.id);
+                  showToast(`Selected Mandi: ${centre.name}`, "info");
+                }}
+                height="380px"
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">

@@ -39,6 +39,10 @@ export interface FarmerProfileResponse {
   preferred_crop: string;
   preferred_centre_id?: number | null;
   preferred_centre_name?: string | null;
+  preferred_slot?: string | null;
+  token_display?: string | null;
+  token_number?: number | null;
+  access_token?: string | null;
   created_at: string;
 }
 
