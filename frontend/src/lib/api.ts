@@ -388,48 +388,52 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const primaryUrl = `${API_BASE_URL}${endpoint}`;
-    
-    // Determine alternate URL for loopback resiliency between localhost and 127.0.0.1
-    let alternateUrl: string | null = null;
-    if (primaryUrl.includes("localhost:8000")) {
-      alternateUrl = primaryUrl.replace("localhost:8000", "127.0.0.1:8000");
-    } else if (primaryUrl.includes("127.0.0.1:8000")) {
-      alternateUrl = primaryUrl.replace("127.0.0.1:8000", "localhost:8000");
+    const cleanEp = endpoint.startsWith("/") ? endpoint : "/" + endpoint;
+    const candidates: string[] = [];
+
+    if (typeof window !== "undefined") {
+      candidates.push(`/api${cleanEp}`);
     }
+    candidates.push(`http://127.0.0.1:8000/api${cleanEp}`);
+    candidates.push(`http://localhost:8000/api${cleanEp}`);
 
     const headers = {
       ...this.getHeaders(),
       ...options.headers,
     };
 
-    let res: Response;
-    try {
-      res = await fetch(primaryUrl, {
-        ...options,
-        headers,
-      });
-    } catch (netErr: any) {
-      // If primary failed due to network / connection refusal, try alternate loopback host
-      if (alternateUrl) {
-        try {
-          res = await fetch(alternateUrl, {
-            ...options,
-            headers,
-          });
-        } catch {
-          throw new Error("Unable to connect to AGRIQUENE procurement service. Please ensure the backend is running at http://localhost:8000.");
-        }
-      } else {
-        throw new Error("Unable to connect to AGRIQUENE procurement service. Please ensure the backend is running at http://localhost:8000.");
+    let res: Response | null = null;
+    for (const url of candidates) {
+      try {
+        res = await fetch(url, {
+          ...options,
+          headers,
+        });
+        if (res) break;
+      } catch {
+        // Try next candidate
       }
+    }
+
+    if (!res) {
+      throw new Error("Unable to connect to AGRIQUENE procurement service. Please ensure the backend is running at http://localhost:8000.");
     }
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({ detail: `Server responded with status ${res.status}` }));
-      throw new Error(errorData.detail || `Server responded with error ${res.status}`);
+      let errorMessage: string;
+      if (Array.isArray(errorData.detail)) {
+        errorMessage = errorData.detail.map((e: any) => e.msg || JSON.stringify(e)).join('; ');
+      } else {
+        errorMessage = errorData.detail || `Server responded with error ${res.status}`;
+      }
+      throw new Error(errorMessage);
     }
 
+    const contentType = res.headers.get('content-type');
+    if (res.status === 204 || !contentType?.includes('application/json')) {
+      return {} as T;
+    }
     return res.json();
   }
 

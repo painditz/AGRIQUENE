@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import uuid
 from ..db.session import get_db
@@ -67,69 +68,92 @@ async def create_booking(
         )
     slot = db.query(Slot).filter(Slot.id == payload.slot_id).first()
 
-    # Generate next sequential token number for this centre today
-    latest_token = (
-        db.query(Token)
-        .filter(Token.centre_id == centre.id)
-        .order_by(Token.token_number.desc())
-        .first()
-    )
-    next_token_num = (latest_token.token_number + 1) if latest_token else 101
-    
-    # Calculate initial queue position based on waiting count
-    waiting_count = (
-        db.query(Token)
-        .filter(Token.centre_id == centre.id, Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED]))
-        .count()
-    )
-    position = waiting_count + 1
-
     clean_code = centre.code.split('-')[-2] if ('-' in centre.code and len(centre.code.split('-')) >= 2) else (centre.code[:4].upper() if centre.code else "MNDI")
-    booking_ref = f"AGQ-2026-{clean_code}-{next_token_num}"
-    
-    # Create booking record
-    booking = Booking(
-        booking_reference=booking_ref,
-        farmer_id=farmer.id,
-        centre_id=centre.id,
-        slot_id=slot.id,
-        crop_type=payload.crop_type,
-        estimated_quantity_quintals=payload.estimated_quantity_quintals,
-        season=payload.season,
-        status=BookingStatus.CONFIRMED,
-        booking_date=slot.date
-    )
-    db.add(booking)
-    db.flush()
+    preferred_slot_str = f"{slot.start_time} - {slot.end_time}"
 
-    # Create Token record
-    token_display = f"#{next_token_num}"
-    token_obj = Token(
-        token_number=next_token_num,
-        token_display=token_display,
-        booking_id=booking.id,
-        farmer_id=farmer.id,
-        centre_id=centre.id,
-        slot_id=slot.id,
-        status=TokenStatus.WAITING,
-        current_position=position,
-        initial_position=position
-    )
-    db.add(token_obj)
-    db.flush()
+    # Retry loop to handle concurrent token number collisions
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Generate next sequential token number for this centre
+            latest_token = (
+                db.query(Token)
+                .filter(Token.centre_id == centre.id)
+                .order_by(Token.token_number.desc())
+                .first()
+            )
+            next_token_num = (latest_token.token_number + 1) if latest_token else 101
 
-    # Create Queue Entry
-    queue_entry = QueueEntry(
-        centre_id=centre.id,
-        token_id=token_obj.id,
-        position=position,
-        is_active=True
-    )
-    db.add(queue_entry)
+            # Calculate initial queue position based on waiting count
+            waiting_count = (
+                db.query(Token)
+                .filter(Token.centre_id == centre.id, Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED]))
+                .count()
+            )
+            position = waiting_count + 1
 
-    db.commit()
-    db.refresh(token_obj)
-    db.refresh(booking)
+            booking_ref = f"AGQ-2026-{clean_code}-{next_token_num}"
+
+            # Create booking record
+            booking = Booking(
+                booking_reference=booking_ref,
+                farmer_id=farmer.id,
+                centre_id=centre.id,
+                slot_id=slot.id,
+                preferred_slot=preferred_slot_str,
+                crop_type=payload.crop_type,
+                estimated_quantity_quintals=payload.estimated_quantity_quintals,
+                season=payload.season,
+                status=BookingStatus.CONFIRMED,
+                booking_date=slot.date
+            )
+            db.add(booking)
+
+            # Store preferred slot, centre, and crop in farmer profile
+            farmer.preferred_centre_id = centre.id
+            farmer.preferred_crop = payload.crop_type
+            farmer.preferred_slot = preferred_slot_str
+
+            db.flush()
+
+            # Create Token record
+            token_display = f"#{next_token_num}"
+            token_obj = Token(
+                token_number=next_token_num,
+                token_display=token_display,
+                booking_id=booking.id,
+                farmer_id=farmer.id,
+                centre_id=centre.id,
+                slot_id=slot.id,
+                status=TokenStatus.WAITING,
+                current_position=position,
+                initial_position=position
+            )
+            db.add(token_obj)
+            db.flush()
+
+            # Create Queue Entry
+            queue_entry = QueueEntry(
+                centre_id=centre.id,
+                token_id=token_obj.id,
+                position=position,
+                is_active=True
+            )
+            db.add(queue_entry)
+
+            db.commit()
+            db.refresh(token_obj)
+            db.refresh(booking)
+            break  # Success — exit retry loop
+
+        except IntegrityError:
+            db.rollback()
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Unable to generate a unique token number. Please try again."
+                )
+            # Retry with next available number
 
     # Calculate real-time ETA
     eta_data = eta_service.calculate_eta(

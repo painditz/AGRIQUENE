@@ -294,16 +294,23 @@ export function LeafletMandiMap({
         if (markersLayerRef.current) {
           markersLayerRef.current.addLayer(marker);
         }
-        boundsLatLngs.push([centre.latitude, centre.longitude]);
       } catch {}
     });
 
-    // 3. Driving Route Polyline (Requirement 1 & 4)
-    // Protected with noClip: true to completely prevent "reading 'min'"
     const targetCentre =
       visibleCentres.find((c) => c.id === selectedCentreId) ||
       visibleCentres.find((c) => c.id === nearestCentreId) ||
       (visibleCentres.length > 0 ? visibleCentres[0] : null);
+
+    if (targetCentre && isValidCoord(targetCentre.latitude, targetCentre.longitude)) {
+      boundsLatLngs.push([targetCentre.latitude, targetCentre.longitude]);
+    } else if (!hasValidFarmer && visibleCentres.length > 0) {
+      visibleCentres.slice(0, 3).forEach((c) => {
+        if (isValidCoord(c.latitude, c.longitude)) {
+          boundsLatLngs.push([c.latitude, c.longitude]);
+        }
+      });
+    }
 
     if (hasValidFarmer && targetCentre && isValidCoord(targetCentre.latitude, targetCentre.longitude)) {
       const farmerPt: [number, number] = [farmerLocation!.lat, farmerLocation!.lng];
@@ -459,6 +466,11 @@ export function LeafletMandiMap({
         } catch {}
         mapInstanceRef.current = null;
       }
+      if (mapContainerRef.current) {
+        try {
+          delete (mapContainerRef.current as any)._leaflet_id;
+        } catch {}
+      }
 
       if (!isMountedRef.current || !mapContainerRef.current) return;
 
@@ -522,6 +534,9 @@ export function LeafletMandiMap({
         // Wait until Leaflet is fully ready before rendering initial layers
         map.whenReady(() => {
           if (isMountedRef.current && mapInstanceRef.current) {
+            try {
+              mapInstanceRef.current.invalidateSize({ animate: false });
+            } catch {}
             renderLayers(L, mapInstanceRef.current);
           }
         });
@@ -548,6 +563,11 @@ export function LeafletMandiMap({
           mapInstanceRef.current.remove();
         } catch {}
         mapInstanceRef.current = null;
+      }
+      if (mapContainerRef.current) {
+        try {
+          delete (mapContainerRef.current as any)._leaflet_id;
+        } catch {}
       }
     };
   }, []);

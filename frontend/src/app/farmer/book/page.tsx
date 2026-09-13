@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FarmerLayout } from "@/components/layout/FarmerLayout";
@@ -13,7 +13,7 @@ import { ChangeMandiModal } from "@/components/mandi/ChangeMandiModal";
 import { LeafletMandiMap, FarmerLocation } from "@/components/map/LeafletMandiMap";
 import {
   CalendarPlus, Building2, Wheat, Scale, Calendar,
-  Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Sparkles, MapPin, Search
+  Clock, CheckCircle2, Ticket, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Sparkles, MapPin, Search, X
 } from "lucide-react";
 
 function BookSlotContent() {
@@ -29,12 +29,25 @@ function BookSlotContent() {
   const [selectedCentreId, setSelectedCentreId] = useState<number | null>(preselectedCentre ? parseInt(preselectedCentre) : null);
   const [farmerLocation, setFarmerLocation] = useState<FarmerLocation | null>(null);
   const [showMandiModal, setShowMandiModal] = useState(false);
+  const [mandiSearchQuery, setMandiSearchQuery] = useState("");
   const [crops, setCrops] = useState<CropItem[]>([]);
   const [selectedCrop, setSelectedCrop] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(45.0);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [slots, setSlots] = useState<SlotItem[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
+
+  const searchedCentres = useMemo(() => {
+    const q = mandiSearchQuery.trim().toLowerCase();
+    if (!q) return centres;
+    return centres.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.district.toLowerCase().includes(q) ||
+        c.state.toLowerCase().includes(q) ||
+        (c.address && c.address.toLowerCase().includes(q))
+    );
+  }, [centres, mandiSearchQuery]);
 
   const [bookingStep, setBookingStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -197,8 +210,8 @@ function BookSlotContent() {
         {/* STEP 1: Select Centre & Crop */}
         {bookingStep === 1 && (
           <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-6 shadow-sm space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-700 uppercase">
                   1. Procurement Centre (Mandi)
                 </label>
@@ -208,8 +221,64 @@ function BookSlotContent() {
                   className="text-xs text-[#0B2545] font-bold hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Search className="w-3.5 h-3.5" />
-                  <span>Change Mandi</span>
+                  <span>Browse All Mandis</span>
                 </button>
+              </div>
+
+              {/* Quick Search Bar to quickly search/select a Mandi */}
+              <div className="relative">
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Quick search Mandi by name, district, or city (e.g. Ghaziabad, Hapur, Meerut)..."
+                    value={mandiSearchQuery}
+                    onChange={(e) => setMandiSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-md text-xs outline-none focus:border-[#0B2545] focus:ring-1 focus:ring-[#0B2545] bg-white shadow-xs"
+                  />
+                  {mandiSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setMandiSearchQuery("")}
+                      className="absolute right-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold p-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Instant Search Results Dropdown */}
+                {mandiSearchQuery.trim().length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-md shadow-xl z-20 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                    {searchedCentres.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-500 text-center">
+                        No procurement centres match "{mandiSearchQuery}"
+                      </div>
+                    ) : (
+                      searchedCentres.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedCentreId(c.id);
+                            setMandiSearchQuery("");
+                            showToast(`Selected Mandi: ${c.name}`, "info");
+                          }}
+                          className={`p-3 text-xs hover:bg-blue-50 cursor-pointer flex items-center justify-between transition ${
+                            selectedCentreId === c.id ? "bg-blue-50/90 font-bold text-[#0B2545]" : "text-slate-800"
+                          }`}
+                        >
+                          <div>
+                            <p className="font-bold">{c.name}</p>
+                            <p className="text-[11px] text-slate-500">{c.address} · {c.district}, {c.state}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">
+                            {c.current_waiting_count} waiting
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {centres.find((c) => c.id === selectedCentreId) ? (
@@ -267,7 +336,7 @@ function BookSlotContent() {
                 <span className="text-[11px] text-slate-500 font-medium">{t("clickPinToSelect")}</span>
               </div>
               <LeafletMandiMap
-                centres={centres}
+                centres={searchedCentres.length > 0 ? searchedCentres : centres}
                 farmerLocation={farmerLocation}
                 selectedCentreId={selectedCentreId}
                 onSelectCentre={(centre) => {

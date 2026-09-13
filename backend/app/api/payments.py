@@ -17,7 +17,7 @@ from ..services.sms_service import sms_service
 from ..services.notification_service import notification_service
 from ..services.audit_service import audit_service
 from ..core.websocket import manager
-from ..core.security import get_current_farmer_user
+from ..core.security import get_current_farmer_user, require_role, UserRole
 from ..core.config import settings
 
 router = APIRouter(prefix="/payments", tags=["Payment Tracking"])
@@ -401,7 +401,12 @@ def get_payment_detail(payment_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/{payment_id}/status", response_model=PaymentResponse)
-async def update_payment_status(payment_id: int, payload: PaymentUpdateStatusRequest, db: Session = Depends(get_db)):
+async def update_payment_status(
+    payment_id: int,
+    payload: PaymentUpdateStatusRequest,
+    current_admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: Session = Depends(get_db)
+):
     p = db.query(Payment).filter(Payment.id == payment_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Payment record not found")

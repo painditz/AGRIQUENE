@@ -83,7 +83,15 @@ def get_centre_queue(centre_id: int, db: Session = Depends(get_db)):
         
         booking_date = t.booking.booking_date if t.booking else (t.slot.date if t.slot else None)
         slot_date = t.slot.date if t.slot else None
-        slot_time = f"{t.slot.start_time}" if t.slot else "11:00 AM"
+        slot_time = (
+            f"{t.slot.start_time} - {t.slot.end_time}"
+            if (t.slot and t.slot.end_time)
+            else (
+                t.booking.preferred_slot
+                if (t.booking and getattr(t.booking, "preferred_slot", None))
+                else (t.farmer.preferred_slot if (t.farmer and t.farmer.preferred_slot) else (t.slot.start_time if t.slot else "09:00 AM - 11:00 AM"))
+            )
+        )
         counter = t.queue_entry.counter_assigned if t.queue_entry else (1 if t.status in [TokenStatus.CALLED, TokenStatus.PROCESSING, TokenStatus.INSPECTION, TokenStatus.WEIGHING] else None)
         vehicle_num = getattr(t.booking, "vehicle_number", None) if t.booking else None
         vehicle_typ = getattr(t.booking, "vehicle_type", None) if t.booking else None

@@ -11,22 +11,15 @@ export default function FarmerLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [loginMode, setLoginMode] = useState<"password" | "otp">("password");
-
-  // Password Login State
-  const [mobileOrUsername, setMobileOrUsername] = useState("9876543210");
-  const [password, setPassword] = useState("farmer123");
-
-  // OTP Login State
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
+  // Credentials Login State
+  const [mobileOrUsername, setMobileOrUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Direct Password Login
+  // Direct Password / Credentials Login
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -41,44 +34,6 @@ export default function FarmerLoginPage() {
       }
     } catch (err: any) {
       setError(err.message || "Invalid mobile number or password.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // OTP Login Flow
-  const handleSendOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await api.sendFarmerOTP(mobileNumber.trim());
-      setOtpSent(true);
-      setSuccessMsg(res.message);
-      if (res.mock_otp) {
-        setOtp(res.mock_otp);
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to send OTP. Please check mobile number.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const authData = await api.verifyFarmerOTP(mobileNumber.trim(), otp.trim());
-      login(authData);
-      if (!authData.is_registered) {
-        router.push("/farmer/register");
-      } else {
-        router.push("/farmer/dashboard");
-      }
-    } catch (err: any) {
-      setError(err.message || "Invalid OTP code. Please enter 123456.");
     } finally {
       setLoading(false);
     }
@@ -100,30 +55,11 @@ export default function FarmerLoginPage() {
           </p>
         </div>
 
-        {/* Tab switch */}
-        <div className="flex border-b border-slate-200 bg-slate-100 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => { setLoginMode("password"); setError(null); }}
-            className={`flex-1 py-2.5 text-center transition ${
-              loginMode === "password"
-                ? "bg-white text-[#0B2545] border-b-2 border-[#0B2545]"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Password Login
-          </button>
-          <button
-            type="button"
-            onClick={() => { setLoginMode("otp"); setError(null); }}
-            className={`flex-1 py-2.5 text-center transition ${
-              loginMode === "otp"
-                ? "bg-white text-[#0B2545] border-b-2 border-[#0B2545]"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Mobile OTP Login
-          </button>
+        <div className="bg-slate-50 border-b border-slate-200 p-3 text-center">
+          <span className="text-xs font-bold text-[#0B2545] flex items-center justify-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-[#B91C1C]" />
+            <span>Farmer Credentials Login (Mobile / PM-KISAN ID)</span>
+          </span>
         </div>
 
         <div className="p-6 space-y-5">
@@ -140,9 +76,8 @@ export default function FarmerLoginPage() {
             </div>
           )}
 
-          {loginMode === "password" ? (
-            /* Primary Password Login Form */
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
+          {/* Primary Credentials Login Form */}
+          <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-slate-700 mb-1.5">
                   Mobile Number / Username
@@ -202,106 +137,6 @@ export default function FarmerLoginPage() {
                 )}
               </button>
             </form>
-          ) : (
-            /* Fallback Mobile OTP Login Form */
-            <div>
-              {!otpSent ? (
-                <form onSubmit={handleSendOTP} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wide text-slate-700 mb-1.5">
-                      10-Digit Mobile Number
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-500">
-                        +91
-                      </span>
-                      <input
-                        type="tel"
-                        maxLength={10}
-                        required
-                        value={mobileNumber}
-                        onChange={(e) => setMobileNumber(e.target.value)}
-                        placeholder="e.g. 9876543210"
-                        className="w-full pl-12 pr-4 py-2 border border-slate-300 rounded text-sm font-mono focus:ring-1 focus:ring-[#0B2545] focus:border-[#0B2545] outline-none"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      We will send a 6-digit One Time Password (OTP) via SMS.
-                    </p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading || mobileNumber.length < 10}
-                    className="w-full btn-gov-primary py-2.5 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span>Send OTP</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOTP} className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wide text-slate-700">
-                        Enter 6-Digit OTP
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setOtpSent(false)}
-                        className="text-[11px] text-[#0B2545] font-semibold hover:underline"
-                      >
-                        Change Number
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      required
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      placeholder="123456"
-                      className="w-full text-center tracking-widest text-xl font-bold font-mono py-2.5 border border-slate-300 rounded focus:ring-1 focus:ring-[#0B2545] focus:border-[#0B2545] outline-none"
-                    />
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Default developer OTP: <span className="font-bold text-slate-800">123456</span>
-                    </p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading || otp.length < 4}
-                    className="w-full btn-gov-red py-2.5 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4" />
-                        <span>Verify OTP & Login</span>
-                      </>
-                    )}
-                  </button>
-
-                  <div className="text-center pt-1">
-                    <button
-                      type="button"
-                      onClick={handleSendOTP}
-                      className="text-xs text-slate-600 hover:text-[#0B2545] font-semibold"
-                    >
-                      Didn't receive code? Resend OTP
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
 
           {/* Privacy & Security Footnote */}
           <div className="pt-4 border-t border-slate-200 text-center text-[11px] text-slate-500 space-y-1">

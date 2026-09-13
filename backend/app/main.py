@@ -105,5 +105,6 @@ def root():
     }
 
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "healthy", "timestamp": str(logging.Formatter().formatTime(logging.LogRecord("", 0, "", 0, "", (), None)))}

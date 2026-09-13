@@ -51,16 +51,23 @@ export default function StaffQueuePage() {
     loadCentres();
   }, [user?.centreId, selectedCentreId, setActiveCentreId]);
 
+  const lastErrorToastRef = React.useRef<number>(0);
+
   const loadQueue = useCallback(async () => {
     try {
       const data = await api.getCentreQueue(effectiveCentreId);
       setQueueStatus(data);
+      lastErrorToastRef.current = 0; // Reset on success
       if (inspectToken) {
         const updated = data.queue.find(q => q.token_id === inspectToken.token_id);
         if (updated) setInspectToken(updated);
       }
     } catch {
-      showToast("Unable to fetch queue state from backend", "error");
+      const now = Date.now();
+      if (now - lastErrorToastRef.current > 30000) {
+        showToast("Unable to fetch queue state from backend", "error");
+        lastErrorToastRef.current = now;
+      }
     } finally {
       setLoading(false);
     }

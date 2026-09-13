@@ -275,10 +275,10 @@ export default function FarmerLiveQueuePage() {
                   People Ahead of You
                 </span>
                 <p className="text-3xl font-black text-slate-900 font-mono">
-                  {token.current_position}
+                  {Math.max(0, (token.current_position || 0) - 1)}
                 </p>
                 <p className="text-xs text-slate-600">
-                  Trolleys waiting in line
+                  {Math.max(0, (token.current_position || 0) - 1) === 1 ? "Trolley" : "Trolleys"} waiting ahead
                 </p>
               </div>
 

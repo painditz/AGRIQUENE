@@ -108,6 +108,9 @@ class Farmer(Base):
     preferred_crop = Column(String(50), default="Wheat")
     preferred_centre_id = Column(Integer, ForeignKey("procurement_centres.id"), nullable=True)
     preferred_slot = Column(String(50), nullable=True, default="09:00 AM - 11:00 AM")
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    selected_location = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="farmer_profile")
@@ -222,6 +225,7 @@ class Booking(Base):
     season = Column(String(50), default="Rabi 2026")
     status = Column(SQLEnum(BookingStatus), default=BookingStatus.CONFIRMED)
     booking_date = Column(String(20), nullable=False)
+    preferred_slot = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     farmer = relationship("Farmer", back_populates="bookings")

@@ -48,7 +48,7 @@ export function DemoBar() {
               <span className="text-slate-300">Logged in as:</span>
               <span className="font-bold text-amber-300">{user.fullName}</span>
               <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono text-[10px] font-bold">
-                {user.role}
+                {user.role === "BUYER" || user.role === "MANDI_OFFICER" ? "MANDI OFFICER" : user.role}
               </span>
             </div>
           ) : (

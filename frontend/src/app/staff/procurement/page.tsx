@@ -29,15 +29,17 @@ export default function StaffProcurementPage() {
   const [completedRecord, setCompletedRecord] = useState<ProcurementItem | null>(null);
 
   const centreId = user?.centreId || 1;
+  const [crops, setCrops] = useState<any[]>([]);
 
   useEffect(() => {
     async function load() {
       try {
-        const [q, crops] = await Promise.all([
+        const [q, cropsData] = await Promise.all([
           api.getCentreQueue(centreId),
           api.getCrops(),
         ]);
         setQueueStatus(q);
+        setCrops(cropsData);
         
         let targetId: number | null = null;
         if (typeof window !== "undefined") {
@@ -56,20 +58,33 @@ export default function StaffProcurementPage() {
 
         if (targetId) {
           setSelectedTokenId(targetId);
-          const found = q.queue.find(item => item.token_id === targetId);
-          if (found) {
-            setGrossWeight(found.quantity_quintals + 1.8);
-            setTareWeight(1.8);
-            const cropMatch = crops.find(c => c.name.toLowerCase().includes(found.crop.toLowerCase()));
-            if (cropMatch) {
-              setBaseMSP(cropMatch.msp_per_quintal);
-            }
-          }
         }
       } catch {}
     }
     load();
   }, [centreId]);
+
+  // Update form fields when selected token changes
+  useEffect(() => {
+    if (!selectedTokenId || !queueStatus || crops.length === 0) return;
+    const found = queueStatus.queue.find(item => item.token_id === selectedTokenId);
+    if (found) {
+      setGrossWeight(found.quantity_quintals + 1.8);
+      setTareWeight(1.8);
+      setMoisturePct(11.5);
+      setQualityGrade("Grade A (FAQ)");
+      setBonusAmount(0.0);
+      setRemarks("Standard certified procurement.");
+      setError(null);
+      setCompletedRecord(null);
+      const cropMatch = crops.find(c => c.name.toLowerCase().includes(found.crop.toLowerCase()));
+      if (cropMatch) {
+        setBaseMSP(cropMatch.msp_per_quintal);
+      } else {
+        setBaseMSP(2275.0);
+      }
+    }
+  }, [selectedTokenId, queueStatus, crops]);
 
   const netWeight = Math.max(0, grossWeight - tareWeight);
   const totalAmount = Math.round((netWeight * baseMSP + bonusAmount) * 100) / 100;

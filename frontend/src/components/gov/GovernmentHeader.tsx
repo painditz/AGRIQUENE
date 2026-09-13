@@ -44,7 +44,7 @@ export function GovernmentHeader() {
               <div>
                 <p className="font-bold text-[#0B2545]">{user.fullName}</p>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  Role: <span className="font-semibold text-[#B91C1C]">{user.role}</span>
+                  Role: <span className="font-semibold text-[#B91C1C]">{user.role === "BUYER" || user.role === "MANDI_OFFICER" ? "MANDI OFFICER / STAFF" : user.role}</span>
                   {user.centreName && ` | ${user.centreName}`}
                 </p>
               </div>

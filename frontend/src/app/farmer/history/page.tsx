@@ -50,7 +50,12 @@ export default function FarmerHistoryPage() {
             </span>
           </div>
 
-          {history.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8 text-xs text-slate-500">
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
+              Loading procurement history...
+            </div>
+          ) : history.length === 0 ? (
             <div className="text-center py-8 text-xs text-slate-500">
               No historical records found.
             </div>
@@ -78,7 +83,7 @@ export default function FarmerHistoryPage() {
                         <td className="p-2.5 font-mono">
                           <span className="font-bold text-[#0B2545]">{item.receipt_number}</span>
                           <p className="text-[10px] text-slate-400">
-                            {new Date(item.verified_at).toLocaleDateString()}
+                            {item.verified_at ? new Date(item.verified_at).toLocaleDateString() : "Pending"}
                           </p>
                         </td>
                         <td className="p-2.5 text-slate-800">{item.centre_name}</td>
@@ -87,9 +92,9 @@ export default function FarmerHistoryPage() {
                           <p className="text-[10px] text-slate-500">{item.quality_grade}</p>
                         </td>
                         <td className="p-2.5 font-bold font-mono">
-                          {item.net_weight_quintals.toFixed(2)} Qtl
+                          {(item.net_weight_quintals ?? 0).toFixed(2)} Qtl
                         </td>
-                        <td className="p-2.5 font-mono">₹{item.base_msp.toFixed(2)}/Qtl</td>
+                        <td className="p-2.5 font-mono">₹{(item.base_msp ?? 0).toFixed(2)}/Qtl</td>
                         <td className="p-2.5 font-bold text-[#B91C1C] font-mono text-sm">
                           {formatINR(item.total_amount)}
                         </td>
@@ -123,7 +128,7 @@ export default function FarmerHistoryPage() {
                       <StatusBadge status={item.status} />
                     </div>
                     <div className="flex justify-between items-baseline">
-                      <span className="font-semibold text-slate-800">{item.crop_name} ({item.net_weight_quintals.toFixed(2)} Qtl)</span>
+                      <span className="font-semibold text-slate-800">{item.crop_name} ({(item.net_weight_quintals ?? 0).toFixed(2)} Qtl)</span>
                       <span className="font-black font-mono text-base text-[#B91C1C]">{formatINR(item.total_amount)}</span>
                     </div>
                     <p className="text-[11px] text-slate-500">{item.centre_name} · Grade: {item.quality_grade}</p>

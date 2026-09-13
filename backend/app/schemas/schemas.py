@@ -68,6 +68,9 @@ class FarmerRegisterRequest(BaseModel):
     bank_name: Optional[str] = None
     bank_account_number: Optional[str] = None
     ifsc_code: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    selected_location: Optional[str] = None
 
 class FarmerProfileResponse(BaseModel):
     id: int
@@ -89,6 +92,9 @@ class FarmerProfileResponse(BaseModel):
     preferred_centre_id: Optional[int] = None
     preferred_centre_name: Optional[str] = None
     preferred_slot: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    selected_location: Optional[str] = None
     token_display: Optional[str] = None
     token_number: Optional[int] = None
     access_token: Optional[str] = None
