@@ -10,9 +10,11 @@ export interface AuthResponse {
   access_token: string;
   token_type: string;
   user_id: number;
+  username?: string;
   full_name: string;
-  mobile_number: string;
+  mobile_number?: string;
   role: "FARMER" | "BUYER" | "ADMIN";
+  designation?: string;
   is_registered: boolean;
   centre_id?: number;
   centre_name?: string;
@@ -440,9 +442,11 @@ class ApiClient {
 
   async getMe(): Promise<{
     id: number;
+    username?: string;
     full_name: string;
-    mobile_number: string;
+    mobile_number?: string;
     role: "FARMER" | "BUYER" | "ADMIN";
+    designation?: string;
     is_registered: boolean;
     centre_id?: number;
     centre_name?: string;

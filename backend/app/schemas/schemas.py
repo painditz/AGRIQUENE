@@ -31,9 +31,11 @@ class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user_id: int
+    username: Optional[str] = None
     full_name: str
-    mobile_number: str
+    mobile_number: Optional[str] = None
     role: UserRole
+    designation: Optional[str] = None
     is_registered: bool = True
     centre_id: Optional[int] = None
     centre_name: Optional[str] = None

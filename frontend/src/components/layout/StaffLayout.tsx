@@ -20,6 +20,22 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { isConnected } = useQueueSocket();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    router.replace("/staff/login");
+  };
+
+  React.useEffect(() => {
+    if (mounted && !user) {
+      router.replace("/staff/login");
+    }
+  }, [mounted, user, router]);
 
   const staffNav = [
     { name: "Live Queue Manager", href: "/staff/queue", icon: Activity, badge: "Live" },
@@ -31,6 +47,17 @@ export function StaffLayout({ children }: StaffLayoutProps) {
     { name: "Procurement Records", href: "/staff/records", icon: ScrollText },
     { name: "Notifications", href: "/staff/notifications", icon: Bell },
   ];
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="flex items-center gap-2 text-slate-500 text-sm">
+          <div className="w-5 h-5 border-2 border-[#0B2545] border-t-transparent rounded-full animate-spin" />
+          <span>Verifying Operational Clearance...</span>
+        </div>
+      </div>
+    );
+  }
 
   // RBAC: Strict protection for Staff Operations
   if (!user || (user.role !== "BUYER" && user.role !== "ADMIN")) {
@@ -91,11 +118,12 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   }
 
   const mandiDisplayName = user?.centreName || "Procurement Operations Centre (Assigned)";
+  const officerRole = user.designation || (user.role === "ADMIN" ? "State Administrator" : "Mandi Staff Officer");
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
       {/* Staff Operational Header */}
-      <div className="bg-[#0B2545] text-white py-2 px-4 border-b border-[#1E3A8A] shadow-sm">
+      <div className="bg-[#0B2545] text-white py-2.5 px-4 border-b border-[#1E3A8A] shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="bg-[#B91C1C] text-white text-[10px] font-bold uppercase px-2 py-0.5 rounded">
@@ -121,19 +149,23 @@ export function StaffLayout({ children }: StaffLayoutProps) {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
-              <span className="font-bold text-slate-200 hidden md:inline">
-                {user.fullName || "Staff Officer"}
-              </span>
+            {/* Prominent Logged-in Staff Display & Secure Logout */}
+            <div className="flex items-center gap-3 border-l border-slate-700 pl-3">
+              <div className="text-right">
+                <div className="text-xs text-slate-200 font-bold leading-tight">
+                  Logged in as: <span className="text-amber-300 font-semibold">{user.fullName || "Staff Officer"}</span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-medium">
+                  Role: <span className="text-emerald-400 font-bold">{officerRole}</span>
+                </div>
+              </div>
               <button
-                onClick={() => {
-                  logout();
-                  router.push("/staff/login");
-                }}
-                title="Sign Out"
-                className="text-slate-400 hover:text-red-300 transition"
+                onClick={handleLogout}
+                title="Sign Out & Lock Desk"
+                className="bg-red-600/30 hover:bg-red-600/60 border border-red-400/40 text-red-200 hover:text-white px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 text-xs font-bold shadow-sm"
               >
                 <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Logout</span>
               </button>
             </div>
           </div>

@@ -5,9 +5,11 @@ import { api, AuthResponse } from "@/lib/api";
 
 export interface UserInfo {
   id: number;
+  username?: string;
   fullName: string;
-  mobileNumber: string;
+  mobileNumber?: string;
   role: "FARMER" | "BUYER" | "ADMIN" | "GUEST";
+  designation?: string;
   isRegistered: boolean;
   centreId?: number;
   centreName?: string;
@@ -43,9 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         api.getMe().then((me) => {
           const freshUser: UserInfo = {
             id: me.id,
+            username: me.username,
             fullName: me.full_name,
             mobileNumber: me.mobile_number,
             role: me.role,
+            designation: me.designation,
             isRegistered: me.is_registered,
             centreId: me.centre_id,
             centreName: me.centre_name,
@@ -70,9 +74,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = (authData: AuthResponse) => {
     const userInfo: UserInfo = {
       id: authData.user_id,
+      username: authData.username,
       fullName: authData.full_name,
       mobileNumber: authData.mobile_number,
       role: authData.role,
+      designation: authData.designation,
       isRegistered: authData.is_registered,
       centreId: authData.centre_id,
       centreName: authData.centre_name,

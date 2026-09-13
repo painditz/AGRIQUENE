@@ -97,28 +97,68 @@ def verify_farmer_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/buyer/login", response_model=AuthTokenResponse)
+@router.post("/staff/login", response_model=AuthTokenResponse)
 def buyer_login(payload: StaffLoginRequest, db: Session = Depends(get_db)):
-    # Support login by Mobile number or Employee ID
-    buyer = (
-        db.query(Buyer)
-        .join(User, Buyer.user_id == User.id)
-        .filter((Buyer.employee_id == payload.identifier) | (User.mobile_number == payload.identifier))
+    ident = payload.identifier.strip()
+    
+    # 1. Search in User table directly by username, mobile, or email
+    user = (
+        db.query(User)
+        .filter(
+            (func.lower(User.username) == ident.lower()) |
+            (User.mobile_number == ident) |
+            (func.lower(User.email) == ident.lower())
+        )
         .first()
     )
     
+    # 2. If not found by User, try Buyer employee_id
+    buyer = None
+    if not user:
+        buyer = db.query(Buyer).filter(func.lower(Buyer.employee_id) == ident.lower()).first()
+        if buyer:
+            user = buyer.user
+    else:
+        buyer = db.query(Buyer).filter(Buyer.user_id == user.id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid staff username or password."
+        )
+
+    # RBAC: Reject accounts that are not STAFF / BUYER
+    if user.role != UserRole.BUYER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Account is not authorized for mandi staff operational desk."
+        )
+
     if not buyer:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Buyer Employee ID or Mobile Number.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Staff operational desk profile not found."
+        )
+
+    # Check active status
+    if not user.is_active or not buyer.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Staff account is inactive."
+        )
         
-    user = buyer.user
     if not verify_password(payload.password, user.hashed_password) and payload.password != "buyer123":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid staff username or password."
+        )
         
     token = create_access_token(subject=user.id, role=UserRole.BUYER.value)
     
     audit_service.log_event(
         db, action="USER_LOGIN", entity_type="USER",
         entity_id=str(user.id), user_id=user.id,
-        details=f"Buyer / Staff {user.full_name} ({buyer.employee_id}) logged in"
+        details=f"Buyer / Staff {user.full_name} ({user.username or buyer.employee_id}) logged in"
     )
     
     centre_name = buyer.centre.name if buyer.centre else None
@@ -126,9 +166,11 @@ def buyer_login(payload: StaffLoginRequest, db: Session = Depends(get_db)):
         access_token=token,
         token_type="bearer",
         user_id=user.id,
+        username=user.username,
         full_name=user.full_name,
         mobile_number=user.mobile_number,
         role=UserRole.BUYER,
+        designation=buyer.designation or "Mandi Staff Officer",
         is_registered=True,
         centre_id=buyer.centre_id,
         centre_name=centre_name
@@ -178,13 +220,21 @@ def admin_login(payload: StaffLoginRequest, db: Session = Depends(get_db)):
 def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
     """
     Unified Authentication endpoint for Farmer, Buyer, or Admin.
-    Resolves user by Mobile, Email, or Employee ID.
+    Resolves user by Username, Mobile, Email, or Employee ID.
     Supports either password or OTP verification.
     """
     ident = payload.identifier.strip()
     
-    # 1. Search in User table directly (Mobile or Email)
-    user = db.query(User).filter((User.mobile_number == ident) | (func.lower(User.email) == ident.lower())).first()
+    # 1. Search in User table directly (Username, Mobile or Email)
+    user = (
+        db.query(User)
+        .filter(
+            (func.lower(User.username) == ident.lower()) |
+            (User.mobile_number == ident) |
+            (func.lower(User.email) == ident.lower())
+        )
+        .first()
+    )
     
     # 2. If not found, check Buyer employee_id
     buyer_record = None
@@ -222,12 +272,14 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
     # Contextual fields
     centre_id = None
     centre_name = None
+    designation = None
     is_registered = True
 
     if user.role == UserRole.BUYER:
         if not buyer_record:
             buyer_record = db.query(Buyer).filter(Buyer.user_id == user.id).first()
         if buyer_record:
+            designation = buyer_record.designation or "Mandi Staff Officer"
             centre_id = buyer_record.centre_id
             centre_name = buyer_record.centre.name if buyer_record.centre else None
     elif user.role == UserRole.FARMER:
@@ -247,9 +299,11 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
         access_token=token,
         token_type="bearer",
         user_id=user.id,
+        username=user.username,
         full_name=user.full_name,
         mobile_number=user.mobile_number,
         role=user.role,
+        designation=designation,
         is_registered=is_registered,
         centre_id=centre_id,
         centre_name=centre_name
@@ -262,6 +316,7 @@ def get_current_user_profile(
 ):
     centre_id = None
     centre_name = None
+    designation = None
     is_registered = True
 
     if current_user.role == UserRole.FARMER:
@@ -273,15 +328,19 @@ def get_current_user_profile(
             centre_name = prof.preferred_centre.name if prof.preferred_centre else None
     elif current_user.role == UserRole.BUYER:
         buyer = db.query(Buyer).filter(Buyer.user_id == current_user.id).first()
-        if buyer and buyer.centre:
-            centre_id = buyer.centre_id
-            centre_name = buyer.centre.name
+        if buyer:
+            designation = buyer.designation or "Mandi Staff Officer"
+            if buyer.centre:
+                centre_id = buyer.centre_id
+                centre_name = buyer.centre.name
 
     return {
         "id": current_user.id,
+        "username": current_user.username,
         "full_name": current_user.full_name,
         "mobile_number": current_user.mobile_number,
         "role": current_user.role.value,
+        "designation": designation,
         "is_registered": is_registered,
         "centre_id": centre_id,
         "centre_name": centre_name

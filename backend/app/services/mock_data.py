@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from ..models.models import (
     User, Farmer, Buyer, Admin, UserRole,
     ProcurementCentre, CentreStatus, Crop, Slot,
@@ -9,7 +10,112 @@ from ..models.models import (
 )
 from ..core.security import get_password_hash
 
+def ensure_staff_officers(db: Session):
+    """
+    Ensure the two required Mandi Staff / Procurement Officer accounts exist:
+    1. Ashmit Baliyan (Username: ASHMIT, Role: UserRole.BUYER, Password: ASH@MI5T)
+    2. Aryan (Username: ARYAN, Role: UserRole.BUYER, Password: ASH@MI5T)
+    Designation: Mandi Staff Officer
+    """
+    first_centre = db.query(ProcurementCentre).first()
+    centre_id = first_centre.id if first_centre else None
+
+    # Officer 1: Ashmit Baliyan
+    ashmit = db.query(User).filter(func.lower(User.username) == "ashmit").first()
+    if not ashmit:
+        ashmit = User(
+            username="ASHMIT",
+            full_name="Ashmit Baliyan",
+            role=UserRole.BUYER,
+            email="ashmit.baliyan@agriquene.gov.in",
+            mobile_number="9811223301",
+            hashed_password=get_password_hash("ASH@MI5T"),
+            is_active=True
+        )
+        db.add(ashmit)
+        db.flush()
+        ashmit_buyer = Buyer(
+            user_id=ashmit.id,
+            employee_id="STAFF-ASHMIT",
+            centre_id=centre_id,
+            designation="Mandi Staff Officer",
+            counter_number=1,
+            is_active=True
+        )
+        db.add(ashmit_buyer)
+    else:
+        ashmit.full_name = "Ashmit Baliyan"
+        ashmit.role = UserRole.BUYER
+        ashmit.hashed_password = get_password_hash("ASH@MI5T")
+        ashmit.is_active = True
+        buyer_rec = db.query(Buyer).filter(Buyer.user_id == ashmit.id).first()
+        if not buyer_rec:
+            buyer_rec = Buyer(
+                user_id=ashmit.id,
+                employee_id="STAFF-ASHMIT",
+                centre_id=centre_id,
+                designation="Mandi Staff Officer",
+                counter_number=1,
+                is_active=True
+            )
+            db.add(buyer_rec)
+        else:
+            buyer_rec.designation = "Mandi Staff Officer"
+            buyer_rec.is_active = True
+            if centre_id and not buyer_rec.centre_id:
+                buyer_rec.centre_id = centre_id
+
+    # Officer 2: Aryan
+    aryan = db.query(User).filter(func.lower(User.username) == "aryan").first()
+    if not aryan:
+        aryan = User(
+            username="ARYAN",
+            full_name="Aryan",
+            role=UserRole.BUYER,
+            email="aryan@agriquene.gov.in",
+            mobile_number="9811223302",
+            hashed_password=get_password_hash("ASH@MI5T"),
+            is_active=True
+        )
+        db.add(aryan)
+        db.flush()
+        aryan_buyer = Buyer(
+            user_id=aryan.id,
+            employee_id="STAFF-ARYAN",
+            centre_id=centre_id,
+            designation="Mandi Staff Officer",
+            counter_number=2,
+            is_active=True
+        )
+        db.add(aryan_buyer)
+    else:
+        aryan.full_name = "Aryan"
+        aryan.role = UserRole.BUYER
+        aryan.hashed_password = get_password_hash("ASH@MI5T")
+        aryan.is_active = True
+        buyer_rec = db.query(Buyer).filter(Buyer.user_id == aryan.id).first()
+        if not buyer_rec:
+            buyer_rec = Buyer(
+                user_id=aryan.id,
+                employee_id="STAFF-ARYAN",
+                centre_id=centre_id,
+                designation="Mandi Staff Officer",
+                counter_number=2,
+                is_active=True
+            )
+            db.add(buyer_rec)
+        else:
+            buyer_rec.designation = "Mandi Staff Officer"
+            buyer_rec.is_active = True
+            if centre_id and not buyer_rec.centre_id:
+                buyer_rec.centre_id = centre_id
+
+    db.commit()
+
 def seed_initial_data(db: Session):
+    # Ensure staff officers exist even if DB was already populated
+    ensure_staff_officers(db)
+
     # Check if master data already exists
     if db.query(User).first() and db.query(Crop).first() and db.query(ProcurementCentre).first():
         return

@@ -25,7 +25,7 @@ export default function StaffLoginPage() {
       login(authData);
       router.push("/staff/dashboard");
     } catch (err: any) {
-      setError(err.message || "Invalid Staff credentials. Please verify your Employee ID and password.");
+      setError(err.message || "Invalid staff username or password.");
     } finally {
       setLoading(false);
     }
@@ -59,14 +59,14 @@ export default function StaffLoginPage() {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Staff Employee ID or Mobile
+              Staff Username, Employee ID or Mobile
             </label>
             <input
               type="text"
               required
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="e.g. BUYER-GZB-01"
+              placeholder="e.g. ASHMIT, ARYAN, or BUYER-GZB-01"
               className="w-full p-3 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-[#0B2545]"
             />
           </div>
