@@ -58,10 +58,10 @@ export default function StaffQueuePage() {
       const data = await api.getCentreQueue(effectiveCentreId);
       setQueueStatus(data);
       lastErrorToastRef.current = 0; // Reset on success
-      if (inspectToken) {
-        const updated = data.queue.find(q => q.token_id === inspectToken.token_id);
-        if (updated) setInspectToken(updated);
-      }
+      setInspectToken(prev => {
+        if (!prev) return null;
+        return data.queue.find(q => q.token_id === prev.token_id) || prev;
+      });
     } catch {
       const now = Date.now();
       if (now - lastErrorToastRef.current > 30000) {
@@ -71,7 +71,7 @@ export default function StaffQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveCentreId, inspectToken, showToast]);
+  }, [effectiveCentreId, showToast]);
 
   useEffect(() => {
     loadQueue();
@@ -303,6 +303,7 @@ export default function StaffQueuePage() {
                         <td className="p-3">
                           <span className="font-bold text-slate-900 block">{item.farmer_name}</span>
                           <span className="text-[10px] text-slate-500 font-mono">
+                            {item.farmer_id_card ? <span className="text-slate-700 font-semibold">{item.farmer_id_card} • </span> : null}
                             {item.farmer_mobile_masked}
                           </span>
                         </td>
@@ -427,6 +428,10 @@ export default function StaffQueuePage() {
                 <div className="bg-slate-50 p-3 rounded-lg border">
                   <span className="text-slate-500 block">Farmer Name</span>
                   <span className="font-bold text-slate-900 text-sm">{inspectToken.farmer_name}</span>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-lg border">
+                  <span className="text-slate-500 block">Farmer ID / PM-KISAN</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">{inspectToken.farmer_id_card || (inspectToken.farmer_id ? `ID #${inspectToken.farmer_id}` : "Verified")}</span>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-lg border">
                   <span className="text-slate-500 block">Mobile Number</span>

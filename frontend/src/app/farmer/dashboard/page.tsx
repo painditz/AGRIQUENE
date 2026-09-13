@@ -30,8 +30,8 @@ export default function FarmerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     setError(null);
     try {
       // Load real profile from database
@@ -61,10 +61,10 @@ export default function FarmerDashboardPage() {
     loadData();
   }, [loadData]);
 
-  // When WebSocket fires an event, immediately sync data
+  // When WebSocket fires an event, immediately sync data in background without flashing
   useEffect(() => {
     if (lastEvent) {
-      loadData();
+      loadData(true);
     }
   }, [lastEvent, loadData]);
 
@@ -149,7 +149,7 @@ export default function FarmerDashboardPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={loadData}
+              onClick={() => loadData()}
               disabled={loading}
               className="btn-gov-outline text-xs py-2 px-3 font-semibold flex items-center gap-1.5"
             >

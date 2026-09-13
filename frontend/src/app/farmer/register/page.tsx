@@ -23,10 +23,8 @@ export default function FarmerRegisterPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form State: Personal KYC Details Only
-  const [fullName, setFullName] = useState(
-    user?.fullName && user.fullName !== "New Farmer" ? user.fullName : ""
-  );
-  const [mobileNumber, setMobileNumber] = useState(user?.mobileNumber || "");
+  const [fullName, setFullName] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [farmerIdCard, setFarmerIdCard] = useState("");
   const [fatherName, setFatherName] = useState("");
   const [village, setVillage] = useState("");
@@ -41,9 +39,14 @@ export default function FarmerRegisterPage() {
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [ifscCode, setIfscCode] = useState("");
 
-  // Prepopulate from existing profile if available
+  // Prepopulate from existing profile ONLY if explicitly in edit mode (?edit=true)
   useEffect(() => {
     let isMounted = true;
+    const isEditMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "true";
+    if (!isEditMode) {
+      return;
+    }
+
     const loadProfile = async () => {
       try {
         const prof = await api.getFarmerProfile();
@@ -142,10 +145,14 @@ export default function FarmerRegisterPage() {
           is_registered: true,
           centre_id: response.preferred_centre_id ?? undefined,
           centre_name: response.preferred_centre_name ?? undefined,
+          farmer_id: response.id,
+          farmer_id_card: response.farmer_id_card ?? undefined,
         });
       } else if (updateUser) {
         updateUser({
           fullName: response.full_name,
+          farmerId: response.id,
+          farmerIdCard: response.farmer_id_card ?? undefined,
           isRegistered: true,
         });
       }

@@ -24,19 +24,24 @@ def farmer_password_login(payload: FarmerLoginRequest, db: Session = Depends(get
     Authenticates by mobile number or PM-KISAN ID card with bcrypt password verification.
     """
     ident = (payload.identifier or payload.mobile_number or payload.username or "").strip()
-    user = (
-        db.query(User)
-        .filter(
-            (User.mobile_number == ident) |
-            (func.lower(User.username) == ident.lower()) |
-            (func.lower(User.email) == ident.lower())
-        )
-        .first()
-    )
+    user = None
+
+    # 1. If identifier looks like a Farmer ID or PM-KISAN ID card, check Farmer profile first
+    farmer_prof = db.query(Farmer).filter(func.lower(Farmer.farmer_id_card) == ident.lower()).first()
+    if farmer_prof and farmer_prof.user:
+        user = farmer_prof.user
+
+    # 2. Otherwise check mobile number, username, or email
     if not user:
-        farmer_prof = db.query(Farmer).filter(func.lower(Farmer.farmer_id_card) == ident.lower()).first()
-        if farmer_prof:
-            user = farmer_prof.user
+        user = (
+            db.query(User)
+            .filter(
+                (User.mobile_number == ident) |
+                (func.lower(User.username) == ident.lower()) |
+                (func.lower(User.email) == ident.lower())
+            )
+            .first()
+        )
 
     if not user:
         raise HTTPException(
@@ -67,6 +72,8 @@ def farmer_password_login(payload: FarmerLoginRequest, db: Session = Depends(get
     farmer_profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
     centre_id = farmer_profile.preferred_centre_id if farmer_profile else None
     centre_name = farmer_profile.preferred_centre.name if (farmer_profile and farmer_profile.preferred_centre) else None
+    farmer_id = farmer_profile.id if farmer_profile else None
+    farmer_id_card = farmer_profile.farmer_id_card if farmer_profile else None
 
     token = create_access_token(subject=user.id, role=UserRole.FARMER.value)
 
@@ -87,7 +94,9 @@ def farmer_password_login(payload: FarmerLoginRequest, db: Session = Depends(get
         designation=None,
         is_registered=True,
         centre_id=centre_id,
-        centre_name=centre_name
+        centre_name=centre_name,
+        farmer_id=farmer_id,
+        farmer_id_card=farmer_id_card
     )
 
 @router.post("/farmer/send-otp", response_model=SendOTPResponse)
@@ -156,6 +165,8 @@ def verify_farmer_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
         entity_id=str(user.id), user_id=user.id,
         details=f"Farmer {user.full_name} ({user.mobile_number}) verified OTP and logged in"
     )
+
+    farmer_prof_record = farmer_profile if 'farmer_profile' in locals() and farmer_profile else db.query(Farmer).filter(Farmer.user_id == user.id).first()
     
     return AuthTokenResponse(
         access_token=token,
@@ -166,7 +177,9 @@ def verify_farmer_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
         role=UserRole.FARMER,
         is_registered=is_registered,
         centre_id=centre_id,
-        centre_name=centre_name
+        centre_name=centre_name,
+        farmer_id=farmer_prof_record.id if farmer_prof_record else None,
+        farmer_id_card=farmer_prof_record.farmer_id_card if farmer_prof_record else None
     )
 
 @router.post("/buyer/login", response_model=AuthTokenResponse)
@@ -301,17 +314,24 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
     Supports either password or OTP verification.
     """
     ident = payload.identifier.strip()
+    user = None
     
+    # 0. Check Farmer ID / PM-KISAN ID first
+    farmer_match = db.query(Farmer).filter(func.lower(Farmer.farmer_id_card) == ident.lower()).first()
+    if farmer_match and farmer_match.user:
+        user = farmer_match.user
+
     # 1. Search in User table directly (Username, Mobile or Email)
-    user = (
-        db.query(User)
-        .filter(
-            (func.lower(User.username) == ident.lower()) |
-            (User.mobile_number == ident) |
-            (func.lower(User.email) == ident.lower())
+    if not user:
+        user = (
+            db.query(User)
+            .filter(
+                (func.lower(User.username) == ident.lower()) |
+                (User.mobile_number == ident) |
+                (func.lower(User.email) == ident.lower())
+            )
+            .first()
         )
-        .first()
-    )
     
     # 2. If not found, check Buyer employee_id
     buyer_record = None
@@ -350,6 +370,8 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
     centre_id = None
     centre_name = None
     designation = None
+    farmer_id = None
+    farmer_id_card = None
     is_registered = True
 
     if user.role in [UserRole.MANDI_OFFICER, UserRole.BUYER]:
@@ -363,6 +385,11 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
         farmer_profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
         if not farmer_profile:
             is_registered = False
+        else:
+            farmer_id = farmer_profile.id
+            farmer_id_card = farmer_profile.farmer_id_card
+            centre_id = farmer_profile.preferred_centre_id
+            centre_name = farmer_profile.preferred_centre.name if farmer_profile.preferred_centre else None
 
     token = create_access_token(subject=user.id, role=user.role.value)
 
@@ -383,7 +410,9 @@ def unified_login(payload: UnifiedLoginRequest, db: Session = Depends(get_db)):
         designation=designation,
         is_registered=is_registered,
         centre_id=centre_id,
-        centre_name=centre_name
+        centre_name=centre_name,
+        farmer_id=farmer_id,
+        farmer_id_card=farmer_id_card
     )
 
 @router.get("/me")
@@ -394,6 +423,8 @@ def get_current_user_profile(
     centre_id = None
     centre_name = None
     designation = None
+    farmer_id = None
+    farmer_id_card = None
     is_registered = True
 
     if current_user.role == UserRole.FARMER:
@@ -401,6 +432,8 @@ def get_current_user_profile(
         if not prof:
             is_registered = False
         else:
+            farmer_id = prof.id
+            farmer_id_card = prof.farmer_id_card
             centre_id = prof.preferred_centre_id
             centre_name = prof.preferred_centre.name if prof.preferred_centre else None
     elif current_user.role in [UserRole.MANDI_OFFICER, UserRole.BUYER]:
@@ -420,7 +453,9 @@ def get_current_user_profile(
         "designation": designation,
         "is_registered": is_registered,
         "centre_id": centre_id,
-        "centre_name": centre_name
+        "centre_name": centre_name,
+        "farmer_id": farmer_id,
+        "farmer_id_card": farmer_id_card
     }
 
 

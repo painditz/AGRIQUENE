@@ -97,7 +97,7 @@ export default function FarmerProfilePage() {
               </div>
             </div>
             <Link
-              href="/farmer/register"
+              href="/farmer/register?edit=true"
               className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition"
             >
               <Edit3 className="w-4 h-4" />

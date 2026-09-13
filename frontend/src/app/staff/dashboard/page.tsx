@@ -24,8 +24,8 @@ export default function StaffDashboardPage() {
 
   const centreId = user?.centreId || 1;
 
-  const loadDashboard = async () => {
-    setLoading(true);
+  const loadDashboard = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       setActiveCentreId(centreId);
       const data = await staffApi.getCentreQueue(centreId);
@@ -43,7 +43,7 @@ export default function StaffDashboardPage() {
 
   useEffect(() => {
     if (lastEvent) {
-      loadDashboard();
+      loadDashboard(true);
       if (lastEvent.type === "TOKEN_CALLED") {
         playAlertSound();
       }

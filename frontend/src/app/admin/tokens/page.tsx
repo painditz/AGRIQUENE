@@ -225,8 +225,9 @@ export default function AdminTokensPage() {
 
                       <td className="p-2.5">
                         <span className="font-bold text-slate-900 block">{t.farmer_name}</span>
-                        <span className="text-[11px] text-slate-500 font-mono">
-                          {t.farmer_mobile || t.farmer_id_card || "Verified"}
+                        <span className="text-[11px] text-slate-500 font-mono block">
+                          {t.farmer_id_card ? <span className="font-semibold text-slate-700">{t.farmer_id_card} • </span> : null}
+                          {t.farmer_mobile || "Verified"}
                         </span>
                       </td>
 

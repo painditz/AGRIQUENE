@@ -18,6 +18,8 @@ export interface AuthResponse {
   is_registered: boolean;
   centre_id?: number;
   centre_name?: string;
+  farmer_id?: number;
+  farmer_id_card?: string;
 }
 
 export interface FarmerProfileResponse {
@@ -483,6 +485,8 @@ class ApiClient {
     is_registered: boolean;
     centre_id?: number;
     centre_name?: string;
+    farmer_id?: number;
+    farmer_id_card?: string;
   }> {
     return this.request("/auth/me");
   }

@@ -13,6 +13,8 @@ export interface UserInfo {
   isRegistered: boolean;
   centreId?: number;
   centreName?: string;
+  farmerId?: number;
+  farmerIdCard?: string;
 }
 
 interface AuthContextType {
@@ -53,6 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isRegistered: me.is_registered,
             centreId: me.centre_id,
             centreName: me.centre_name,
+            farmerId: me.farmer_id,
+            farmerIdCard: me.farmer_id_card,
           };
           setUser(freshUser);
           localStorage.setItem("agriquene_user", JSON.stringify(freshUser));
@@ -63,7 +67,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           setToken(null);
         });
-        return;
       } catch {
         localStorage.removeItem("agriquene_token");
         localStorage.removeItem("agriquene_user");
@@ -82,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isRegistered: authData.is_registered,
       centreId: authData.centre_id,
       centreName: authData.centre_name,
+      farmerId: authData.farmer_id,
+      farmerIdCard: authData.farmer_id_card,
     };
     setUser(userInfo);
     setToken(authData.access_token);

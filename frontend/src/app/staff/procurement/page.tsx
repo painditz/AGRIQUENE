@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { StaffLayout } from "@/components/layout/StaffLayout";
 import { api, CentreQueueStatus, ProcurementItem } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -31,38 +31,39 @@ export default function StaffProcurementPage() {
   const centreId = user?.centreId || 1;
   const [crops, setCrops] = useState<any[]>([]);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [q, cropsData] = await Promise.all([
-          api.getCentreQueue(centreId),
-          api.getCrops(),
-        ]);
-        setQueueStatus(q);
-        setCrops(cropsData);
-        
-        let targetId: number | null = null;
-        if (typeof window !== "undefined") {
-          const params = new URLSearchParams(window.location.search);
-          const tId = params.get("token_id");
-          if (tId) {
-            const parsed = parseInt(tId, 10);
-            if (!isNaN(parsed) && q.queue.some(item => item.token_id === parsed)) {
-              targetId = parsed;
-            }
+  const load = useCallback(async () => {
+    try {
+      const [q, cropsData] = await Promise.all([
+        api.getCentreQueue(centreId),
+        api.getCrops(),
+      ]);
+      setQueueStatus(q);
+      setCrops(cropsData);
+      
+      let targetId: number | null = null;
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const tId = params.get("token_id");
+        if (tId) {
+          const parsed = parseInt(tId, 10);
+          if (!isNaN(parsed) && q.queue.some(item => item.token_id === parsed)) {
+            targetId = parsed;
           }
         }
-        if (!targetId) {
-          targetId = q.current_serving_id || (q.queue.length > 0 ? q.queue[0].token_id : null);
-        }
+      }
+      if (!targetId) {
+        targetId = q.current_serving_id || (q.queue.length > 0 ? q.queue[0].token_id : null);
+      }
 
-        if (targetId) {
-          setSelectedTokenId(targetId);
-        }
-      } catch {}
-    }
-    load();
+      if (targetId) {
+        setSelectedTokenId(targetId);
+      }
+    } catch {}
   }, [centreId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Update form fields when selected token changes
   useEffect(() => {
@@ -195,9 +196,10 @@ export default function StaffProcurementPage() {
               <button
                 onClick={() => {
                   setCompletedRecord(null);
-                  window.location.reload();
+                  setSelectedTokenId(null);
+                  load();
                 }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0B2545] hover:bg-[#133E68] text-white rounded-lg text-xs font-bold shadow"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0B2545] hover:bg-[#133E68] text-white rounded-lg text-xs font-bold shadow cursor-pointer"
               >
                 <span>Process Next Token</span>
                 <ArrowRight className="w-4 h-4" />
@@ -239,8 +241,8 @@ export default function StaffProcurementPage() {
                           </span>
                         </div>
                         <p className="font-bold text-slate-800">{item.farmer_name}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {item.crop} • {item.quantity_quintals} Qtl
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          {item.farmer_id_card ? `ID: ${item.farmer_id_card} • ` : ""}{item.crop} • {item.quantity_quintals} Qtl
                         </p>
                       </div>
                     );
@@ -254,6 +256,27 @@ export default function StaffProcurementPage() {
               <h3 className="text-base font-black text-[#0B2545] font-serif border-b pb-3">
                 Certified Weighment Slip Entry
               </h3>
+
+              {selectedToken && (
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Farmer Producer</span>
+                    <strong className="text-slate-900 text-sm">{selectedToken.farmer_name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Farmer ID / PM-KISAN</span>
+                    <strong className="text-slate-900 font-mono">{selectedToken.farmer_id_card || (selectedToken.farmer_id ? `ID #${selectedToken.farmer_id}` : "Verified")}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Active Token</span>
+                    <strong className="text-[#0B2545] font-mono text-sm">{selectedToken.token_display}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Declared Produce</span>
+                    <strong className="text-slate-800">{selectedToken.crop} ({selectedToken.quantity_quintals} Qtl)</strong>
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div className="bg-red-50 border border-red-300 text-red-800 text-xs p-3 rounded-lg flex items-center gap-2">

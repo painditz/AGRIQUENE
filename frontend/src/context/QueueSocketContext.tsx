@@ -178,19 +178,6 @@ export function QueueSocketProvider({ children }: { children: React.ReactNode })
     return () => window.removeEventListener("mandi-changed", handleMandiChanged);
   }, [activeCentreId]);
 
-  // Continuous background synchronization:
-  // Guarantees queue synchronization between Farmer and Staff even across networks or reconnection intervals
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      setLastEvent((prev) => ({
-        type: "COUNTERS_UPDATED",
-        centre_id: activeCentreId,
-        timestamp: new Date().toISOString(),
-      }));
-    }, 4500);
-    return () => clearInterval(syncInterval);
-  }, [activeCentreId]);
-
   const clearNotification = () => setLatestNotification(null);
 
   return (

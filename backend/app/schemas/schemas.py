@@ -46,6 +46,8 @@ class AuthTokenResponse(BaseModel):
     is_registered: bool = True
     centre_id: Optional[int] = None
     centre_name: Optional[str] = None
+    farmer_id: Optional[int] = None
+    farmer_id_card: Optional[str] = None
 
 # -------------------------------------------------------------
 # Farmer Profile & Registration Schemas

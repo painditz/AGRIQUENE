@@ -32,7 +32,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   };
 
   React.useEffect(() => {
-    if (mounted && !user) {
+    const hasToken = typeof window !== "undefined" && localStorage.getItem("agriquene_token");
+    if (mounted && !user && !hasToken) {
       router.replace("/staff/login");
     }
   }, [mounted, user, router]);

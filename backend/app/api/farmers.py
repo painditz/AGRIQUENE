@@ -237,41 +237,75 @@ async def register_farmer_profile(
             detail="Please enter a valid 10-digit Indian mobile number."
         )
 
-    # If the token user does not match the clean_mob, decouple so we register/load the right farmer
-    if user and user.mobile_number != clean_mob:
-        user = None
-
-    if not user:
-        existing_user = db.query(User).filter(User.mobile_number == clean_mob).first()
-        if existing_user:
-            user = existing_user
-            user.full_name = payload.full_name.strip()
-        else:
-            user = User(
-                mobile_number=clean_mob,
-                full_name=payload.full_name.strip(),
-                role=UserRole.FARMER,
-                hashed_password=get_password_hash("farmer123"),
-                is_active=True
-            )
-            db.add(user)
-            db.flush()
-    else:
-        user.full_name = payload.full_name.strip()
-
-    issued_access_token = create_access_token(subject=user.id, role=UserRole.FARMER.value)
-
-    profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
-    if not profile:
-        profile = Farmer(
-            user_id=user.id,
-            district=payload.district.strip() if payload.district else "General",
-            state=payload.state.strip() if payload.state else "India"
-        )
-        db.add(profile)
-        db.flush()
-
     raw_card = (payload.farmer_id_card or "").strip()
+    if raw_card == "PMK-UP-2026-9481" and user and user.id != 1:
+        raw_card = ""
+
+    # 1. Check if an existing farmer already has this exact farmer_id_card
+    existing_farmer_by_card = None
+    if raw_card:
+        existing_farmer_by_card = db.query(Farmer).filter(func.lower(Farmer.farmer_id_card) == raw_card.lower()).first()
+
+    if existing_farmer_by_card:
+        # Existing farmer updating profile
+        profile = existing_farmer_by_card
+        user = profile.user
+        user.full_name = payload.full_name.strip()
+    else:
+        # If raw_card was specified but doesn't exist in DB, this is a BRAND NEW farmer with this ID card!
+        # If the request had a bearer user whose farmer card is different, decouple completely:
+        if user and raw_card:
+            user_prof = db.query(Farmer).filter(Farmer.user_id == user.id).first()
+            if user_prof and user_prof.farmer_id_card and user_prof.farmer_id_card.lower() != raw_card.lower():
+                user = None
+
+        if not user:
+            existing_user = db.query(User).filter(User.mobile_number == clean_mob).first()
+            if existing_user:
+                existing_prof = db.query(Farmer).filter(Farmer.user_id == existing_user.id).first()
+                if existing_prof and raw_card and existing_prof.farmer_id_card and existing_prof.farmer_id_card.lower() != raw_card.lower():
+                    # Mobile belongs to another farmer with a different card -> generate unique mobile for this new farmer
+                    candidate_mob = clean_mob
+                    count = 1
+                    while db.query(User).filter(User.mobile_number == candidate_mob).first():
+                        candidate_mob = f"{clean_mob[:7]}{count:03d}"
+                        count += 1
+                    clean_mob = candidate_mob
+                    user = User(
+                        mobile_number=clean_mob,
+                        username=f"farmer_{raw_card.lower().replace(' ', '_').replace('-', '_')}",
+                        full_name=payload.full_name.strip(),
+                        role=UserRole.FARMER,
+                        hashed_password=get_password_hash("farmer123"),
+                        is_active=True
+                    )
+                    db.add(user)
+                    db.flush()
+                else:
+                    user = existing_user
+                    user.full_name = payload.full_name.strip()
+            else:
+                user = User(
+                    mobile_number=clean_mob,
+                    username=f"farmer_{raw_card.lower().replace(' ', '_').replace('-', '_')}" if raw_card else f"farmer_{clean_mob}",
+                    full_name=payload.full_name.strip(),
+                    role=UserRole.FARMER,
+                    hashed_password=get_password_hash("farmer123"),
+                    is_active=True
+                )
+                db.add(user)
+                db.flush()
+
+        profile = db.query(Farmer).filter(Farmer.user_id == user.id).first()
+        if not profile:
+            profile = Farmer(
+                user_id=user.id,
+                district=payload.district.strip() if payload.district else "General",
+                state=payload.state.strip() if payload.state else "India"
+            )
+            db.add(profile)
+            db.flush()
+
     state_code = "UP"
     if payload.state:
         st_clean = "".join([c for c in payload.state if c.isalnum()]).upper()
@@ -280,18 +314,8 @@ async def register_farmer_profile(
 
     mob_suffix = clean_mob[-4:] if len(clean_mob) >= 4 else f"{user.id:04d}"
 
-    if raw_card == "PMK-UP-2026-9481" and user.id != 1:
-        raw_card = ""
-
     if raw_card:
-        duplicate = db.query(Farmer).filter(
-            Farmer.farmer_id_card == raw_card,
-            Farmer.user_id != user.id
-        ).first()
-        if duplicate:
-            candidate_card = f"{raw_card}-{user.id}"
-        else:
-            candidate_card = raw_card
+        candidate_card = raw_card
     else:
         if profile.farmer_id_card:
             candidate_card = profile.farmer_id_card
@@ -303,6 +327,7 @@ async def register_farmer_profile(
                 attempt += 1
 
     profile.farmer_id_card = candidate_card
+    issued_access_token = create_access_token(subject=user.id, role=UserRole.FARMER.value)
     profile.father_name = payload.father_name.strip() if payload.father_name else None
     profile.address = payload.address.strip() if payload.address else None
     profile.village = payload.village.strip() if payload.village else None

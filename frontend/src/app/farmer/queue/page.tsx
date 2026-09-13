@@ -29,8 +29,8 @@ export default function FarmerLiveQueuePage() {
   const [soundAlertEnabled, setSoundAlertEnabled] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const tokenData = await api.getFarmerCurrentToken().catch(() => null);
       if (tokenData) {
@@ -52,16 +52,16 @@ export default function FarmerLiveQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [setActiveCentreId, user]);
+  }, [setActiveCentreId, user?.id, user?.centreId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // When WebSocket fires an event
+  // When WebSocket fires an event, update silently without flashing the screen
   useEffect(() => {
     if (lastEvent) {
-      loadData();
+      loadData(true);
       if (soundAlertEnabled && lastEvent.type === "TOKEN_CALLED") {
         playAlertSound();
       }
@@ -137,6 +137,7 @@ export default function FarmerLiveQueuePage() {
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Centre: <strong className="text-slate-800">{token?.centre_name || "Agri Procurement Centre"}</strong>
+              {user?.farmerIdCard && <span> · Farmer ID: <strong className="font-mono text-slate-800">{user.farmerIdCard}</strong></span>}
             </p>
           </div>
 
@@ -164,7 +165,7 @@ export default function FarmerLiveQueuePage() {
             </button>
 
             <button
-              onClick={loadData}
+              onClick={() => loadData()}
               disabled={loading}
               className="btn-gov-outline text-xs py-2 px-3 flex items-center gap-1.5 font-bold"
             >
