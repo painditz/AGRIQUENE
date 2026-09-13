@@ -190,7 +190,7 @@ export default function AdminTokensPage() {
           ) : tokens.length === 0 ? (
             <div className="text-center py-12 px-4 space-y-2">
               <Ticket className="w-10 h-10 text-slate-300 mx-auto" />
-              <h4 className="text-sm font-bold text-slate-700">No token records found</h4>
+              <h4 className="text-sm font-bold text-slate-700">No active procurement tokens</h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 No farmer bookings match the active filter criteria. Adjust the search or mandi dropdown to view entries.
               </p>

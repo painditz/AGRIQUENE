@@ -25,7 +25,6 @@ export const DEMO_PRESETS = {
   farmer: {
     mobile: "9876543210",
     name: "Ramesh Kumar Sharma",
-    token: "#128",
     centre: "Agri Procurement Centre – Ghaziabad Mandi"
   },
   buyer: {

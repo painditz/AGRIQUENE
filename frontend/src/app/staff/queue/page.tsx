@@ -255,7 +255,7 @@ export default function StaffQueuePage() {
               <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
                 <Users className="w-6 h-6" />
               </div>
-              <p className="text-sm font-semibold text-slate-700">No farmers currently in queue.</p>
+              <p className="text-sm font-bold text-slate-700 uppercase tracking-wide">NO ACTIVE FARMERS IN QUEUE</p>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
                 Tokens booked by farmers at this mandi will automatically synchronize here in real-time.
               </p>

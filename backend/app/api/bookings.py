@@ -36,7 +36,10 @@ async def create_booking(
         db.query(Token)
         .filter(
             Token.farmer_id == farmer.id,
-            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING])
+            Token.status.in_([
+                TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED,
+                TokenStatus.PROCESSING, TokenStatus.INSPECTION, TokenStatus.WEIGHING
+            ])
         )
         .first()
     )

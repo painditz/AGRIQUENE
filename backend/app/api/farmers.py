@@ -18,6 +18,7 @@ from ..core.security import get_current_user, create_access_token, get_password_
 from ..models.models import UserRole
 from ..services.audit_service import audit_service
 from ..services.eta_service import eta_service
+from ..core.websocket import manager
 
 router = APIRouter(prefix="/farmers", tags=["Farmer Services"])
 
@@ -201,7 +202,7 @@ def update_preferred_centre(
     )
 
 @router.post("/register", response_model=FarmerProfileResponse)
-def register_farmer_profile(
+async def register_farmer_profile(
     payload: FarmerRegisterRequest,
     user: Optional[User] = Depends(get_optional_farmer_user),
     db: Session = Depends(get_db)
@@ -358,59 +359,86 @@ def register_farmer_profile(
                     db.add(slot)
                     db.flush()
 
-                waiting_count = (
-                    db.query(Token)
-                    .filter(
-                        Token.centre_id == centre.id,
-                        Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING])
+                # Duplicate prevention: Check if farmer already has an active token in the queue
+                existing_active = db.query(Token).filter(
+                    Token.farmer_id == profile.id,
+                    Token.status.in_([
+                        TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED,
+                        TokenStatus.PROCESSING, TokenStatus.INSPECTION, TokenStatus.WEIGHING
+                    ])
+                ).first()
+                if existing_active:
+                    token_display = existing_active.token_display
+                    token_number = existing_active.token_number
+                else:
+                    waiting_count = (
+                        db.query(Token)
+                        .filter(
+                            Token.centre_id == centre.id,
+                            Token.status.in_([
+                                TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED,
+                                TokenStatus.PROCESSING, TokenStatus.INSPECTION, TokenStatus.WEIGHING
+                            ])
+                        )
+                        .count()
                     )
-                    .count()
-                )
-                pos = waiting_count + 1
-                next_tok_num = (db.query(func.max(Token.token_number)).filter(Token.centre_id == centre.id).scalar() or 0) + 1
-                clean_code = centre.code.split('-')[-2] if (centre.code and '-' in centre.code) else (centre.code[:4].upper() if centre.code else "MNDI")
-                booking_ref = f"AGQ-2026-{clean_code}-{next_tok_num}"
+                    pos = waiting_count + 1
+                    next_tok_num = (db.query(func.max(Token.token_number)).filter(Token.centre_id == centre.id).scalar() or 100) + 1
+                    clean_code = centre.code.split('-')[-2] if (centre.code and '-' in centre.code) else (centre.code[:4].upper() if centre.code else "MNDI")
+                    booking_ref = f"AGQ-2026-{clean_code}-{next_tok_num}"
 
-                booking = Booking(
-                    booking_reference=booking_ref,
-                    farmer_id=profile.id,
-                    centre_id=centre.id,
-                    slot_id=slot.id,
-                    crop_type=profile.preferred_crop or "Wheat",
-                    estimated_quantity_quintals=float(profile.land_acres or 2.5) * 12.0,
-                    season="Rabi 2026",
-                    status=BookingStatus.CONFIRMED,
-                    booking_date=slot.date
-                )
-                db.add(booking)
-                db.flush()
+                    booking = Booking(
+                        booking_reference=booking_ref,
+                        farmer_id=profile.id,
+                        centre_id=centre.id,
+                        slot_id=slot.id,
+                        crop_type=profile.preferred_crop or "Wheat",
+                        estimated_quantity_quintals=float(profile.land_acres or 2.5) * 12.0,
+                        season="Rabi 2026",
+                        status=BookingStatus.CONFIRMED,
+                        booking_date=slot.date
+                    )
+                    db.add(booking)
+                    db.flush()
 
-                token_disp = f"#{next_tok_num}"
-                token_obj = Token(
-                    token_number=next_tok_num,
-                    token_display=token_disp,
-                    booking_id=booking.id,
-                    farmer_id=profile.id,
-                    centre_id=centre.id,
-                    slot_id=slot.id,
-                    status=TokenStatus.WAITING,
-                    current_position=pos,
-                    initial_position=pos
-                )
-                db.add(token_obj)
-                db.flush()
+                    token_disp = f"#{next_tok_num}"
+                    token_obj = Token(
+                        token_number=next_tok_num,
+                        token_display=token_disp,
+                        booking_id=booking.id,
+                        farmer_id=profile.id,
+                        centre_id=centre.id,
+                        slot_id=slot.id,
+                        status=TokenStatus.WAITING,
+                        current_position=pos,
+                        initial_position=pos
+                    )
+                    db.add(token_obj)
+                    db.flush()
 
-                queue_entry = QueueEntry(
-                    centre_id=centre.id,
-                    token_id=token_obj.id,
-                    position=pos,
-                    is_active=True
-                )
-                db.add(queue_entry)
-                db.commit()
+                    queue_entry = QueueEntry(
+                        centre_id=centre.id,
+                        token_id=token_obj.id,
+                        position=pos,
+                        is_active=True
+                    )
+                    db.add(queue_entry)
+                    db.commit()
 
-                token_display = token_disp
-                token_number = next_tok_num
+                    token_display = token_disp
+                    token_number = next_tok_num
+
+                    # Broadcast real-time event to Mandi Officer & Admin desks
+                    booking_event = {
+                        "type": "NEW_BOOKING",
+                        "centre_id": centre.id,
+                        "token_number": next_tok_num,
+                        "token_display": token_disp,
+                        "position": pos,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    await manager.broadcast_to_centre(str(centre.id), booking_event)
+                    await manager.broadcast_global(booking_event)
 
     centre_name = profile.preferred_centre.name if profile.preferred_centre else None
     audit_service.log_event(
@@ -451,27 +479,22 @@ def get_farmer_active_token(user: User = Depends(get_current_farmer_user), db: S
     if not farmer:
         return None
         
-    # Get active token (WAITING, ARRIVED, CALLED, or PROCESSING)
+    # Get active token (WAITING, ARRIVED, CALLED, PROCESSING, INSPECTION, WEIGHING)
     active_token = (
         db.query(Token)
         .filter(
             Token.farmer_id == farmer.id,
-            Token.status.in_([TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED, TokenStatus.PROCESSING])
+            Token.status.in_([
+                TokenStatus.WAITING, TokenStatus.ARRIVED, TokenStatus.CALLED,
+                TokenStatus.PROCESSING, TokenStatus.INSPECTION, TokenStatus.WEIGHING
+            ])
         )
         .order_by(Token.created_at.desc())
         .first()
     )
     
     if not active_token:
-        # Check if there is a recently completed token
-        active_token = (
-            db.query(Token)
-            .filter(Token.farmer_id == farmer.id)
-            .order_by(Token.created_at.desc())
-            .first()
-        )
-        if not active_token:
-            return None
+        return None
 
     # Calculate real-time ETA
     centre = active_token.centre

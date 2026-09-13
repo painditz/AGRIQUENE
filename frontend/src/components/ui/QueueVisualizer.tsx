@@ -20,13 +20,11 @@ export function QueueVisualizer({
   // Base numbers
   const baseServingNum = servingTokenDisplay ? parseInt(servingTokenDisplay.replace("#", ""), 10) : null;
 
-  // Recent completed tokens from base serving number
-  const completedTokens = baseServingNum && baseServingNum > 100
-    ? [
-        { num: baseServingNum - 2, display: `#${baseServingNum - 2}`, status: "COMPLETED" },
-        { num: baseServingNum - 1, display: `#${baseServingNum - 1}`, status: "COMPLETED" },
-      ]
-    : [];
+  // Completed tokens: strictly from real completed items in queue from database
+  const completedTokens = queue
+    ?.filter((q) => q.status === "COMPLETED")
+    ?.slice(-2)
+    ?.map((q) => ({ num: q.token_number, display: q.token_display, status: "COMPLETED" })) || [];
 
   // Active serving
   const isUserServing = Boolean(userTokenDisplay && servingTokenDisplay && servingTokenDisplay === userTokenDisplay);

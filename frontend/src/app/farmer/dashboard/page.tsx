@@ -404,7 +404,7 @@ export default function FarmerDashboardPage() {
               <QueueVisualizer
                 queue={queueStatus.queue}
                 userTokenDisplay={token.token_display}
-                servingTokenDisplay={queueStatus.current_serving_token || "#101"}
+                servingTokenDisplay={queueStatus.current_serving_token || ""}
                 currentPosition={token.current_position}
               />
             )}
