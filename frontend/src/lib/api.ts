@@ -171,6 +171,20 @@ export interface CentreQueueStatus {
   updated_at: string;
 }
 
+export interface LocationSearchResult {
+  place_id: string;
+  display_name: string;
+  village?: string;
+  town?: string;
+  district: string;
+  state: string;
+  pin_code?: string;
+  latitude: number;
+  longitude: number;
+  mandi_name?: string;
+  centre_id?: number;
+}
+
 export interface ETAPrediction {
   token_id: number;
   token_number: number;
@@ -582,6 +596,15 @@ class ApiClient {
   async getCentreSlots(centreId: number, date?: string): Promise<SlotItem[]> {
     const query = date ? `?date=${encodeURIComponent(date)}` : "";
     return this.request<SlotItem[]>(`/centres/${centreId}/slots${query}`);
+  }
+
+  async searchLocations(query: string): Promise<LocationSearchResult[]> {
+    const q = encodeURIComponent(query.trim());
+    return this.request<LocationSearchResult[]>(`/centres/locations/search?q=${q}`);
+  }
+
+  async reverseGeocode(lat: number, lng: number): Promise<LocationSearchResult> {
+    return this.request<LocationSearchResult>(`/centres/locations/reverse?lat=${lat}&lng=${lng}`);
   }
 
   async createBooking(data: {

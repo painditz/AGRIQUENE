@@ -149,6 +149,19 @@ class CropResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class LocationSearchResult(BaseModel):
+    place_id: str
+    display_name: str
+    village: Optional[str] = None
+    town: Optional[str] = None
+    district: str
+    state: str
+    pin_code: Optional[str] = None
+    latitude: float
+    longitude: float
+    mandi_name: Optional[str] = None
+    centre_id: Optional[int] = None
+
 # -------------------------------------------------------------
 # Booking & Tokens
 # -------------------------------------------------------------

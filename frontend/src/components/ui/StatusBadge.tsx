@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface StatusBadgeProps {
   status: string;
@@ -6,6 +9,16 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className = "" }: StatusBadgeProps) {
+  let lang = "en";
+  let t: ((key: any) => string) | null = null;
+  try {
+    const langCtx = useLanguage();
+    lang = langCtx.lang;
+    t = langCtx.t;
+  } catch {
+    // Fallback if rendered outside LanguageProvider
+  }
+
   const norm = (status || "").toUpperCase();
 
   let colorClasses = "bg-slate-100 text-slate-700 border-slate-300";
@@ -30,11 +43,20 @@ export function StatusBadge({ status, className = "" }: StatusBadgeProps) {
     colorClasses = "bg-amber-100 text-amber-900 border-amber-400";
   }
 
+  let displayText = status;
+  if (t) {
+    const translationKey = `dyn${norm}`;
+    const translated = t(translationKey as any);
+    if (translated && translated !== translationKey) {
+      displayText = translated;
+    }
+  }
+
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${colorClasses} ${className}`}
     >
-      {status}
+      {displayText}
     </span>
   );
 }

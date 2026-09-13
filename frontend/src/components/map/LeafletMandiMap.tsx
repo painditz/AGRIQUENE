@@ -420,17 +420,21 @@ export function LeafletMandiMap({
       try {
         const currentSize = map.getSize();
         if (currentSize && currentSize.x > 0 && currentSize.y > 0) {
-          if (boundsLatLngs.length > 1) {
-            const validBounds = boundsLatLngs.filter((pt) => isValidCoord(pt[0], pt[1]));
-            if (validBounds.length > 1) {
-              map.fitBounds(validBounds, {
-                padding: [45, 45],
-                maxZoom: 13,
-                animate: false,
-              });
+          try {
+            if (boundsLatLngs.length > 1) {
+              const validBounds = boundsLatLngs.filter((pt) => isValidCoord(pt[0], pt[1]));
+              if (validBounds.length > 1) {
+                map.fitBounds(validBounds, {
+                  padding: [45, 45],
+                  maxZoom: 13,
+                  animate: false,
+                });
+              }
+            } else if (boundsLatLngs.length === 1 && isValidCoord(boundsLatLngs[0][0], boundsLatLngs[0][1])) {
+              map.setView(boundsLatLngs[0], 11, { animate: false });
             }
-          } else if (boundsLatLngs.length === 1) {
-            map.setView(boundsLatLngs[0], 11, { animate: false });
+          } catch (e) {
+            // Container may be transitioning or zero-sized
           }
         }
       } catch {}
@@ -502,11 +506,13 @@ export function LeafletMandiMap({
         });
 
         // ResizeObserver to handle container layout changes
-        if (window.ResizeObserver && mapContainerRef.current) {
+        if (typeof window !== "undefined" && window.ResizeObserver && mapContainerRef.current) {
           resizeObserver = new ResizeObserver(() => {
             if (isMountedRef.current && mapInstanceRef.current && mapInstanceRef.current._loaded) {
               try {
-                mapInstanceRef.current.invalidateSize();
+                if (mapContainerRef.current && mapContainerRef.current.offsetParent !== null && mapContainerRef.current.clientHeight > 0) {
+                  mapInstanceRef.current.invalidateSize({ animate: false });
+                }
               } catch {}
             }
           });

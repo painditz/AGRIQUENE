@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..db.session import get_db
 from ..models.models import ProcurementCentre, Slot, Token, TokenStatus, CentreStatus
-from ..schemas.schemas import CentreResponse, SlotResponse, CentreQueueStatusResponse, QueueItem
+from ..schemas.schemas import CentreResponse, SlotResponse, CentreQueueStatusResponse, QueueItem, LocationSearchResult
 from ..services.eta_service import eta_service
 
 router = APIRouter(prefix="/centres", tags=["Procurement Centres"])
@@ -183,3 +183,191 @@ def get_centre_slots(
         )
         for s in slots
     ]
+
+@router.get("/locations/search", response_model=List[LocationSearchResult])
+def search_locations(
+    q: str = Query(..., min_length=2, description="Search term for village, town, district, or mandi"),
+    db: Session = Depends(get_db)
+):
+    query_str = q.strip().lower()
+    results: List[LocationSearchResult] = []
+    seen_keys = set()
+
+    # 1. Search existing Procurement Centres in Database
+    centres = (
+        db.query(ProcurementCentre)
+        .filter(
+            (ProcurementCentre.name.ilike(f"%{query_str}%")) |
+            (ProcurementCentre.district.ilike(f"%{query_str}%")) |
+            (ProcurementCentre.state.ilike(f"%{query_str}%")) |
+            (ProcurementCentre.address.ilike(f"%{query_str}%"))
+        )
+        .limit(10)
+        .all()
+    )
+
+    for c in centres:
+        key = f"{c.name.lower()}-{c.district.lower()}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            results.append(
+                LocationSearchResult(
+                    place_id=f"mandi-{c.id}",
+                    display_name=f"{c.name}, {c.district}, {c.state}",
+                    village=c.name.split("Mandi")[0].strip() if "Mandi" in c.name else c.name,
+                    town=c.district,
+                    district=c.district,
+                    state=c.state,
+                    pin_code=c.pin_code,
+                    latitude=c.latitude,
+                    longitude=c.longitude,
+                    mandi_name=c.name,
+                    centre_id=c.id
+                )
+            )
+
+    # 2. Search predefined regional hubs & mandi towns from INDIA_MANDIS seed
+    try:
+        from ..services.seed_india_mandis import INDIA_MANDIS
+        for m in INDIA_MANDIS:
+            name_m = m.get("name", "")
+            dist_m = m.get("district", "")
+            state_m = m.get("state", "")
+            addr_m = m.get("address", "")
+            
+            if (
+                query_str in name_m.lower() or
+                query_str in dist_m.lower() or
+                query_str in state_m.lower() or
+                query_str in addr_m.lower()
+            ):
+                key = f"{dist_m.lower()}-{name_m.lower()}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    results.append(
+                        LocationSearchResult(
+                            place_id=f"seed-{m.get('code', dist_m)}",
+                            display_name=f"{name_m}, {dist_m}, {state_m}",
+                            village=dist_m,
+                            town=dist_m,
+                            district=dist_m,
+                            state=state_m,
+                            pin_code=m.get("pin_code", "110001"),
+                            latitude=float(m.get("latitude", 28.6139)),
+                            longitude=float(m.get("longitude", 77.2090)),
+                            mandi_name=name_m,
+                            centre_id=None
+                        )
+                    )
+            if len(results) >= 12:
+                break
+    except Exception:
+        pass
+
+    # 3. Dedicated common agricultural clusters & NCR towns
+    common_towns = [
+        {"name": "Muradnagar", "district": "Ghaziabad", "state": "Uttar Pradesh", "pin": "201206", "lat": 28.7752, "lng": 77.5034},
+        {"name": "Modinagar", "district": "Ghaziabad", "state": "Uttar Pradesh", "pin": "201204", "lat": 28.8322, "lng": 77.5794},
+        {"name": "Loni", "district": "Ghaziabad", "state": "Uttar Pradesh", "pin": "201102", "lat": 28.7515, "lng": 77.2882},
+        {"name": "Govindpuram", "district": "Ghaziabad", "state": "Uttar Pradesh", "pin": "201013", "lat": 28.6823, "lng": 77.4912},
+        {"name": "Narela", "district": "North Delhi", "state": "Delhi", "pin": "110040", "lat": 28.8529, "lng": 77.0945},
+        {"name": "Najafgarh", "district": "South West Delhi", "state": "Delhi", "pin": "110043", "lat": 28.6092, "lng": 76.9854},
+        {"name": "Bawana", "district": "North Delhi", "state": "Delhi", "pin": "110039", "lat": 28.7997, "lng": 77.0329},
+        {"name": "Alipur", "district": "North Delhi", "state": "Delhi", "pin": "110036", "lat": 28.7998, "lng": 77.1328},
+        {"name": "Ghazipur", "district": "East Delhi", "state": "Delhi", "pin": "110096", "lat": 28.6256, "lng": 77.3325},
+        {"name": "Meerut City", "district": "Meerut", "state": "Uttar Pradesh", "pin": "250002", "lat": 28.9845, "lng": 77.7064},
+        {"name": "Sardhana", "district": "Meerut", "state": "Uttar Pradesh", "pin": "250342", "lat": 29.1465, "lng": 77.6186},
+        {"name": "Mawana", "district": "Meerut", "state": "Uttar Pradesh", "pin": "250401", "lat": 29.1021, "lng": 77.9228},
+        {"name": "Baghpat", "district": "Baghpat", "state": "Uttar Pradesh", "pin": "250609", "lat": 28.9452, "lng": 77.2215},
+        {"name": "Baraut", "district": "Baghpat", "state": "Uttar Pradesh", "pin": "250611", "lat": 29.1012, "lng": 77.2625},
+        {"name": "Hapur", "district": "Hapur", "state": "Uttar Pradesh", "pin": "245101", "lat": 28.7306, "lng": 77.7759},
+        {"name": "Garhmukteshwar", "district": "Hapur", "state": "Uttar Pradesh", "pin": "245205", "lat": 28.7845, "lng": 78.0934},
+        {"name": "Karnal", "district": "Karnal", "state": "Haryana", "pin": "132001", "lat": 29.6857, "lng": 76.9905},
+        {"name": "Panipat", "district": "Panipat", "state": "Haryana", "pin": "132103", "lat": 29.3909, "lng": 76.9635},
+        {"name": "Sonipat", "district": "Sonipat", "state": "Haryana", "pin": "131001", "lat": 28.9931, "lng": 77.0151},
+        {"name": "Kharkhoda", "district": "Sonipat", "state": "Haryana", "pin": "131402", "lat": 28.8785, "lng": 76.9125},
+    ]
+
+    for town in common_towns:
+        t_name = town["name"].lower()
+        t_dist = town["district"].lower()
+        t_state = town["state"].lower()
+        if query_str in t_name or query_str in t_dist or query_str in t_state:
+            key = f"{town['name'].lower()}-{town['district'].lower()}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                results.append(
+                    LocationSearchResult(
+                        place_id=f"cluster-{town['name'].lower()}",
+                        display_name=f"{town['name']}, {town['district']}, {town['state']} (PIN: {town['pin']})",
+                        village=town["name"],
+                        town=town["name"],
+                        district=town["district"],
+                        state=town["state"],
+                        pin_code=town["pin"],
+                        latitude=town["lat"],
+                        longitude=town["lng"],
+                        mandi_name=None,
+                        centre_id=None
+                    )
+                )
+
+    return results
+
+@router.get("/locations/reverse", response_model=LocationSearchResult)
+def reverse_geocode(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    db: Session = Depends(get_db)
+):
+    """
+    Reverse geocodes coordinates to find the closest mandi district/state in the database.
+    """
+    centres = db.query(ProcurementCentre).all()
+    if not centres:
+        return LocationSearchResult(
+            place_id="current-loc",
+            display_name="Your Location, India",
+            village="Farm Location",
+            town="Local District",
+            district="National Capital Region",
+            state="Delhi",
+            pin_code="110001",
+            latitude=lat,
+            longitude=lng
+        )
+
+    closest_centre = None
+    min_dist = float("inf")
+    for c in centres:
+        d = _haversine(lat, lng, c.latitude, c.longitude)
+        if d < min_dist:
+            min_dist = d
+            closest_centre = c
+
+    if closest_centre:
+        return LocationSearchResult(
+            place_id=f"rev-{closest_centre.id}",
+            display_name=f"{closest_centre.district}, {closest_centre.state} (Near {closest_centre.name})",
+            village=f"Near {closest_centre.name}",
+            town=closest_centre.district,
+            district=closest_centre.district,
+            state=closest_centre.state,
+            pin_code=closest_centre.pin_code,
+            latitude=lat,
+            longitude=lng,
+            mandi_name=closest_centre.name,
+            centre_id=closest_centre.id
+        )
+
+    return LocationSearchResult(
+        place_id="current-loc",
+        display_name="Your Location, India",
+        village="Farm Location",
+        town="Local District",
+        district="National Capital Region",
+        state="Delhi",
+        pin_code="110001",
+        latitude=lat,
+        longitude=lng
+    )
